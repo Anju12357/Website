@@ -22,7 +22,7 @@ const userLogin = async (email) => {
     return results || false;
   } catch (error) {
     console.error("User Login Error:", error);
-    return { error: "Server error" };
+    return false;
   }
 };
 
