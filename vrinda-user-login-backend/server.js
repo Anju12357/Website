@@ -66,8 +66,8 @@ const allowedOrigins = [
   "http://192.168.1.16:3000",
   "http://localhost:5174",
   "http://localhost:3001",
+  "https://employee-management-system-alpha-flax.vercel.app",
 ];
-
 
 fastify.register(
   fastifyCors,
