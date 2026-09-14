@@ -59,54 +59,28 @@ const mailRoutes =
 // CORS
 // ======================================================
 
-const allowedOrigins = [
-  "http://localhost:3000",
-  "http://localhost:5175",
-  "http://localhost:5173",
-  "http://192.168.1.16:3000",
-  "http://localhost:5174",
-  "http://localhost:3001",
-  "https://employee-management-system-alpha-flax.vercel.app",
-];
+fastify.register(fastifyCors, {
+  origin: [
+    "http://localhost:3000",
+    "http://localhost:5175",
+    "http://localhost:5173",
+    "http://192.168.1.16:3000",
+    "http://localhost:5174",
+    "http://localhost:3001",
+    "https://employee-management-system-alpha-flax.vercel.app",
+  ],
 
-fastify.register(
-  fastifyCors,
-  {
-    origin: function (
-      origin,
-      callback
-    ) {
-      if (
-        !origin ||
-        allowedOrigins.includes(
-          origin
-        )
-      ) {
-        callback(
-          null,
-          true
-        );
-      } else {
-        callback(
-          new Error(
-            "Not allowed by CORS"
-          ),
-          false
-        );
-      }
-    },
+  credentials: true,
 
-    credentials: true,
+  methods: [
+    "GET",
+    "PUT",
+    "POST",
+    "DELETE",
+    "OPTIONS",
+  ],
+});
 
-    methods: [
-      "GET",
-      "PUT",
-      "POST",
-      "DELETE",
-      "OPTIONS",
-    ],
-  }
-);
 
 
 // ======================================================
