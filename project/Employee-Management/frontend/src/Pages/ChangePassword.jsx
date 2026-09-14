@@ -287,7 +287,7 @@ const sidebarItems = [
   const fetchUser = async () => {
     try {
       const response = await axios.get(
-        "https://website-vltl.onrender.com/auth/me",
+        "https://website-v1t1.onrender.com/auth/me",
         {
           withCredentials: true,
         }
@@ -353,7 +353,7 @@ const sidebarItems = [
       setNotificationLoading(true);
 
       const response = await axios.get(
-        "https://website-vltl.onrender.com/notifications",
+        "https://website-v1t1.onrender.com/notifications",
         {
           withCredentials: true,
         }
@@ -418,7 +418,7 @@ useEffect(() => {
       setSearchLoading(true);
 
       const response = await axios.post(
-        "https://website-vltl.onrender.com/webservices/users/search-users",
+        "https://website-v1t1.onrender.com/webservices/users/search-users",
         {
           search: search.trim(),
         },
@@ -471,7 +471,7 @@ useEffect(() => {
   const markNotificationAsRead = async (id) => {
     try {
       await axios.post(
-        "https://website-vltl.onrender.com/notifications/read",
+        "https://website-v1t1.onrender.com/notifications/read",
         {
           id,
         },
@@ -609,7 +609,7 @@ useEffect(() => {
       );
 
       const response = await axios.post(
-        "https://website-vltl.onrender.com/webservices/users/change-password",
+        "https://website-v1t1.onrender.com/webservices/users/change-password",
         {
           id: user.id,
           password: newPassword,
@@ -2424,3 +2424,4 @@ useEffect(() => {
 }
 
 export default ChangePassword;
+

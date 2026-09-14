@@ -58,7 +58,7 @@ import {
 } from "../permissions";
 
 
-const API = "https://website-vltl.onrender.com";
+const API = "https://website-v1t1.onrender.com";
 
 const ENDPOINTS = {
   me: "/auth/me",
@@ -2068,3 +2068,4 @@ function SectionHeader({ icon, title, subtitle, color, colors }) {
 }
 
 export default Profile;
+

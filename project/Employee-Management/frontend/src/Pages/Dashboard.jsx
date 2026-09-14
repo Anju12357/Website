@@ -246,7 +246,7 @@ const currentGraphData = {
   const fetchDashboardStats = async () => {
   try {
     const res = await axios.get(
-      "https://website-vltl.onrender.com/dashboard/stats"
+      "https://website-v1t1.onrender.com/dashboard/stats"
     );
 
     if (res.data.status === 1) {
@@ -259,7 +259,7 @@ const currentGraphData = {
 const fetchEmployees = async () => {
   try {
     const res = await axios.post(
-      "https://website-vltl.onrender.com/webservices/users/get-all-users"
+      "https://website-v1t1.onrender.com/webservices/users/get-all-users"
     );
 
     if (res.data.status === 1) {
@@ -275,7 +275,7 @@ const fetchEmployeeRoles = async () => {
     setRolesLoading(true);
 
     const res = await axios.post(
-      "https://website-vltl.onrender.com/webservices/roles/get-roles",
+      "https://website-v1t1.onrender.com/webservices/roles/get-roles",
       {},
       {
         withCredentials: true,
@@ -326,7 +326,7 @@ const searchEmployees = async (searchText) => {
     }
 
     const res = await axios.post(
-      "https://website-vltl.onrender.com/webservices/users/search-users",
+      "https://website-v1t1.onrender.com/webservices/users/search-users",
       {
         search: searchText,
       }
@@ -345,7 +345,7 @@ const searchEmployees = async (searchText) => {
 const fetchMeeting = async () => {
   try {
     const res = await axios.get(
-      "https://website-vltl.onrender.com/meetings"
+      "https://website-v1t1.onrender.com/meetings"
     );
 
     if (res.data.status === 1 && res.data.data.length > 0) {
@@ -370,7 +370,7 @@ const fetchMeeting = async () => {
 const fetchDepartmentChart = async () => {
   try {
     const res = await axios.get(
-      "https://website-vltl.onrender.com/dashboard/department-chart"
+      "https://website-v1t1.onrender.com/dashboard/department-chart"
     );
 
     if (res.data.status === 1) {
@@ -384,7 +384,7 @@ const fetchDepartmentChart = async () => {
 const fetchPerformance = async () => {
   try {
     const res = await axios.get(
-      "https://website-vltl.onrender.com/dashboard/performance"
+      "https://website-v1t1.onrender.com/dashboard/performance"
     );
 
     if (res.data.status === 1) {
@@ -398,7 +398,7 @@ const fetchPerformance = async () => {
 
 const fetchNotes = async () => {
   try {
-    const res = await axios.get("https://website-vltl.onrender.com/admin-notes");
+    const res = await axios.get("https://website-v1t1.onrender.com/admin-notes");
 
     if (res.data.status === 1) {
       setNotes(res.data.data);
@@ -410,7 +410,7 @@ const fetchNotes = async () => {
 
 const fetchAuditLogs = async () => {
   try {
-    const res = await axios.get("https://website-vltl.onrender.com/audit-logs");
+    const res = await axios.get("https://website-v1t1.onrender.com/audit-logs");
 
     if (res.data.status === 1) {
       setActivities(res.data.data);
@@ -425,7 +425,7 @@ const fetchNotifications = async () => {
   setNotificationLoading(true);
   try {
     const res = await axios.get(
-      "https://website-vltl.onrender.com/notifications"
+      "https://website-v1t1.onrender.com/notifications"
     );
 
     if (res.data.status === 1 && Array.isArray(res.data.data)) {
@@ -479,7 +479,7 @@ const handleAddEmployee = async () => {
     }
 
     const res = await axios.post(
-      "https://website-vltl.onrender.com/webservices/users/add-users",
+      "https://website-v1t1.onrender.com/webservices/users/add-users",
       {
         name: newEmpName.trim(),
         email: newEmpEmail.trim(),
@@ -537,7 +537,7 @@ const handleUpdateEmployee = async () => {
   if (!can("dashboard.roster.edit")) { setToastMessage("You do not have permission to edit employees"); return; }
   try {
     const res = await axios.post(
-      "https://website-vltl.onrender.com/webservices/users/update-user",
+      "https://website-v1t1.onrender.com/webservices/users/update-user",
       {
         id: editEmployee.id,
         name: editEmployee.name,
@@ -579,7 +579,7 @@ const handleUpdateEmployee = async () => {
   if (!can("dashboard.roster.delete")) { setToastMessage("You do not have permission to delete employees"); return; }
   try {
     const res = await axios.post(
-      "https://website-vltl.onrender.com/webservices/users/delete-user",
+      "https://website-v1t1.onrender.com/webservices/users/delete-user",
       {
         id: selectedEmp.id,
       }
@@ -635,7 +635,7 @@ const handleUpdateEmployee = async () => {
     }
     try {
       setSavingPermissions(true);
-      const res = await axios.post("https://website-vltl.onrender.com/webservices/users/update-user", {
+      const res = await axios.post("https://website-v1t1.onrender.com/webservices/users/update-user", {
         id: permissionEmployee.id ?? permissionEmployee.user_id,
         user_id: permissionEmployee.id ?? permissionEmployee.user_id,
         name: permissionEmployee.name,
@@ -672,7 +672,7 @@ const handleUpdateEmployee = async () => {
 const handleExportData = async () => {
   if (!can("reports.export")) { setToastMessage("You do not have permission to export reports"); return; }
   try {
-    const res = await axios.get("https://website-vltl.onrender.com/dashboard/report");
+    const res = await axios.get("https://website-v1t1.onrender.com/dashboard/report");
 
     console.log(res.data);
 
@@ -701,7 +701,7 @@ const saveNote = async () => {
 
   try {
     const res = await axios.post(
-      "https://website-vltl.onrender.com/admin-notes/add",
+      "https://website-v1t1.onrender.com/admin-notes/add",
       {
         note: quickNote,
       }
@@ -724,7 +724,7 @@ const markNotificationAsRead = async (id) => {
 
   try {
     const res = await axios.post(
-      "https://website-vltl.onrender.com/notifications/read",
+      "https://website-v1t1.onrender.com/notifications/read",
       { id }
     );
 
@@ -932,7 +932,7 @@ useEffect(() => {
   const fetchUser = async () => {
     try {
       const response = await axios.get(
-        "https://website-vltl.onrender.com/auth/me",
+        "https://website-v1t1.onrender.com/auth/me",
         {
           withCredentials: true,
         }
@@ -4001,3 +4001,4 @@ const departmentTotal = departmentChartData.reduce(
 }
 
 export default Dashboard;
+

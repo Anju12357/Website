@@ -233,7 +233,7 @@ const handleLogin = async (e) => {
 
     const response =
       await axios.post(
-        "https://website-vltl.onrender.com/login",
+        "https://website-v1t1.onrender.com/login",
         {
           email:
             email.trim(),
@@ -288,7 +288,7 @@ const handleLogin = async (e) => {
 
     const authResponse =
       await axios.get(
-        "https://website-vltl.onrender.com/auth/me",
+        "https://website-v1t1.onrender.com/auth/me",
         {
           withCredentials: true,
         }

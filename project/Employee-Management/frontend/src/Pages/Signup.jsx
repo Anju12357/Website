@@ -8,7 +8,7 @@ function Signup() {
 
   const signup = async () => {
     try {
-      const res = await axios.post("https://website-vltl.onrender.com/signup", {
+      const res = await axios.post("https://website-v1t1.onrender.com/signup", {
         name,
         email,
         password,

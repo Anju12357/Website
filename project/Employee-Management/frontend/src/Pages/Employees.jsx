@@ -198,7 +198,7 @@ const [creatingMeeting, setCreatingMeeting] = useState(false);
 
     if (/^https?:\/\//i.test(value)) return value;
 
-    return `https://website-vltl.onrender.com${value.startsWith("/") ? "" : "/"}${value}`;
+    return `https://website-v1t1.onrender.com${value.startsWith("/") ? "" : "/"}${value}`;
   };
 
 const fetchEmployees = useCallback(async (search = "") => {
@@ -209,7 +209,7 @@ const fetchEmployees = useCallback(async (search = "") => {
     // This keeps the real employee count independent from search results.
     if (!query) {
       const response = await axios.post(
-        "https://website-vltl.onrender.com/webservices/users/get-all-users",
+        "https://website-v1t1.onrender.com/webservices/users/get-all-users",
         {},
         {
           withCredentials: true,
@@ -238,7 +238,7 @@ const fetchEmployees = useCallback(async (search = "") => {
 
     // Search only changes the visible table.
     const response = await axios.post(
-      "https://website-vltl.onrender.com/webservices/users/search-users",
+      "https://website-v1t1.onrender.com/webservices/users/search-users",
       { search: query },
       {
         withCredentials: true,
@@ -383,7 +383,7 @@ const fetchNotifications = useCallback(async () => {
     setNotificationLoading(true);
 
     const response = await axios.get(
-      "https://website-vltl.onrender.com/notifications",
+      "https://website-v1t1.onrender.com/notifications",
       {
         withCredentials: true,
       }
@@ -426,7 +426,7 @@ const handleNotificationClick = async (notification) => {
   try {
     if (Number(notification?.is_read) === 0 && notification?.id) {
       await axios.post(
-        "https://website-vltl.onrender.com/notifications/read",
+        "https://website-v1t1.onrender.com/notifications/read",
         { id: notification.id },
         { withCredentials: true }
       );
@@ -446,7 +446,7 @@ const handleNotificationClick = async (notification) => {
 const fetchPerformance = useCallback(async () => {
   try {
     const response = await axios.get(
-      "https://website-vltl.onrender.com/dashboard/performance",
+      "https://website-v1t1.onrender.com/dashboard/performance",
       {
         withCredentials: true,
       }
@@ -522,7 +522,7 @@ const link = getMeetingLink(meeting);
 const fetchMeetings = useCallback(async () => {
   try {
     const response = await axios.get(
-      "https://website-vltl.onrender.com/meetings",
+      "https://website-v1t1.onrender.com/meetings",
       {
         withCredentials: true,
       }
@@ -599,7 +599,7 @@ const fetchAttendance = useCallback(async () => {
     setAttendanceLoading(true);
 
     const response = await axios.get(
-      "https://website-vltl.onrender.com/attendance/today",
+      "https://website-v1t1.onrender.com/attendance/today",
       {
         withCredentials: true,
       }
@@ -641,7 +641,7 @@ const fetchAttendance = useCallback(async () => {
 const fetchUser = useCallback(async () => {
   try {
     const response = await axios.get(
-      "https://website-vltl.onrender.com/auth/me",
+      "https://website-v1t1.onrender.com/auth/me",
       {
         withCredentials: true,
       }
@@ -764,7 +764,7 @@ const unreadCount = notifications.filter(
 }
   try {
     const response = await axios.post(
-      "https://website-vltl.onrender.com/webservices/users/get-user-by-id",
+      "https://website-v1t1.onrender.com/webservices/users/get-user-by-id",
       { id },
       {
         withCredentials: true,
@@ -805,7 +805,7 @@ setNewEmpAttendance(emp.attendance);
 
   try {
     const response = await axios.post(
-      "https://website-vltl.onrender.com/webservices/users/add-users",
+      "https://website-v1t1.onrender.com/webservices/users/add-users",
      {
   name: newEmpName,
   email: `${newEmpName.toLowerCase().replace(/\s/g, "")}@gmail.com`,
@@ -859,7 +859,7 @@ const handleUpdateEmployee = async () => {
 
   try {
     const response = await axios.post(
-      "https://website-vltl.onrender.com/webservices/users/update-user",
+      "https://website-v1t1.onrender.com/webservices/users/update-user",
       {
         id: editingEmployee.id,
         name: newEmpName,
@@ -917,7 +917,7 @@ const handleUpdateEmployee = async () => {
 }
   try {
     const response = await axios.post(
-      "https://website-vltl.onrender.com/webservices/users/delete-user",
+      "https://website-v1t1.onrender.com/webservices/users/delete-user",
       {
         id: id,
       },
@@ -975,7 +975,7 @@ const handleUpdateEmployee = async () => {
     );
 
     const response = await axios.post(
-      "https://website-vltl.onrender.com/webservices/mail/send-announcement",
+      "https://website-v1t1.onrender.com/webservices/mail/send-announcement",
       {
         subject,
         message,
@@ -1067,7 +1067,7 @@ const handleCreateMeeting = async () => {
     setCreatingMeeting(true);
 
     const response = await axios.post(
-      "https://website-vltl.onrender.com/meetings/create",
+      "https://website-v1t1.onrender.com/meetings/create",
       {
         title: meetingTitle.trim(),
         date: meetingDate,
@@ -3409,7 +3409,7 @@ const attendanceRate =
         size="small"
         startIcon={<VideoCallIcon />}
         onClick={() => {
-          window.location.href = "https://website-vltl.onrender.com/meetings/google/auth";
+          window.location.href = "https://website-v1t1.onrender.com/meetings/google/auth";
         }}
         sx={{ mt: 1, textTransform: "none", fontWeight: 800, color: "#15803D" }}
       >
@@ -3805,3 +3805,4 @@ const attendanceRate =
 }
 
 export default Employees;
+

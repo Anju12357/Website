@@ -146,7 +146,7 @@ const [skillsList, setSkillsList] = useState([]);
   const fetchUser = async () => {
   try {
     const response = await axios.get(
-      "https://website-vltl.onrender.com/auth/me",
+      "https://website-v1t1.onrender.com/auth/me",
       {
         withCredentials: true,
       }
@@ -238,7 +238,7 @@ const handleProfilePhotoUpload = async (event) => {
     uploadData.append("file", file);
 
     const response = await axios.post(
-      "https://website-vltl.onrender.com/webservices/users/upload-image",
+      "https://website-v1t1.onrender.com/webservices/users/upload-image",
       uploadData,
       {
         withCredentials: true,
@@ -299,7 +299,7 @@ const handleUserSearch = async (value) => {
     setSearchLoading(true);
 
     const response = await axios.post(
-      "https://website-vltl.onrender.com/webservices/users/search-users",
+      "https://website-v1t1.onrender.com/webservices/users/search-users",
       {
         search: value.trim(),
       },
@@ -338,7 +338,7 @@ const getImageUrl = (imagePath) => {
     return imagePath;
   }
 
-  return `https://website-vltl.onrender.com${
+  return `https://website-v1t1.onrender.com${
     imagePath.startsWith("/") ? "" : "/"
   }${imagePath}`;
 };
@@ -352,7 +352,7 @@ const fetchNotifications = async () => {
     setNotificationLoading(true);
 
     const response = await axios.get(
-      "https://website-vltl.onrender.com/notifications",
+      "https://website-v1t1.onrender.com/notifications",
       {
         withCredentials: true,
       }
@@ -378,7 +378,7 @@ const fetchNotifications = async () => {
 const fetchSkills = async (userId) => {
   try {
     const response = await axios.post(
-      "https://website-vltl.onrender.com/webservices/users/get-skills",
+      "https://website-v1t1.onrender.com/webservices/users/get-skills",
       {
         user_id: userId,
       },
@@ -429,7 +429,7 @@ const handleNotificationClick = async (notification) => {
     }
 
     const response = await axios.post(
-      "https://website-vltl.onrender.com/notifications/read",
+      "https://website-v1t1.onrender.com/notifications/read",
       {
         id: notification.id,
       },
@@ -490,7 +490,7 @@ const handleAddSkill = async () => {
 
   try {
     const response = await axios.post(
-      "https://website-vltl.onrender.com/webservices/users/add-skill",
+      "https://website-v1t1.onrender.com/webservices/users/add-skill",
       {
         user_id: formData.id,
         skill,
@@ -546,7 +546,7 @@ const handleDeleteSkill = async (skillToDelete) => {
 
   try {
     const response = await axios.post(
-      "https://website-vltl.onrender.com/webservices/users/delete-skill",
+      "https://website-v1t1.onrender.com/webservices/users/delete-skill",
       {
         id: skillToDelete.id,
         user_id: formData.id,
@@ -591,7 +591,7 @@ const handleSave = async () => {
 
   try {
     const response = await axios.post(
-  "https://website-vltl.onrender.com/webservices/users/update-user",
+  "https://website-v1t1.onrender.com/webservices/users/update-user",
   {
     id: formData.id,
 
