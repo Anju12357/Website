@@ -57,12 +57,26 @@ import LightModeIcon from "@mui/icons-material/LightMode";
 import CloseIcon from "@mui/icons-material/Close";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ElectricBoltIcon from "@mui/icons-material/ElectricBolt";
+import VideoCallIcon from "@mui/icons-material/VideoCall";
+import AccessTimeIcon from "@mui/icons-material/AccessTime";
+import VisibilityIcon from "@mui/icons-material/Visibility";
 
-
+import { canUser } from "../rolePermissionResolver";
 
 
 function Employees() {
   const navigate = useNavigate();
+
+  const [user, setUser] = useState(null);
+  const [permissionVersion, setPermissionVersion] = useState(0);
+
+  // Centralized permission check.
+  // A matching role saved in User Roles is authoritative; backend permissions
+  // are used only when no matching saved role exists.
+  const can = useCallback(
+    (permission) => canUser(user, permission),
+    [user, permissionVersion]
+  );
 
   // THEME STATE (DARK & LIGHT MODE) MATCHING DASHBOARD
   const [darkMode, setDarkMode] = useState(() => {
@@ -91,13 +105,12 @@ function Employees() {
   const [notifications, setNotifications] = useState([]);
   const [notificationLoading, setNotificationLoading] = useState(false);
 
-  const [user, setUser] = useState(null);
-
   // ADD EMPLOYEE MODAL STATE
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [newEmpName, setNewEmpName] = useState("");
   const [newEmpDept, setNewEmpDept] = useState("");
+  const [newEmpJoiningDate, setNewEmpJoiningDate] = useState("");
   const [newEmpDesignation, setNewEmpDesignation] = useState("");
   const [newEmpAttendance, setNewEmpAttendance] = useState("Present");
   const [newEmpRole, setNewEmpRole] = useState("");
@@ -107,21 +120,51 @@ function Employees() {
   const [editingEmployee, setEditingEmployee] = useState(null);
   const [editMode, setEditMode] = useState(false);
 
+  // EMPLOYEE PROFILE + DATABASE ATTENDANCE
+  const [profileEmployee, setProfileEmployee] = useState(null);
+  const [attendanceRecords, setAttendanceRecords] = useState({});
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
+
   // Current time is updated outside render so React Compiler can keep
   // the component render pure.
   const [currentTime, setCurrentTime] = useState(0);
 
   useEffect(() => {
-    const updateCurrentTime = () => {
-      setCurrentTime(Date.now());
-    };
-
+    const updateCurrentTime = () => setCurrentTime(Date.now());
     updateCurrentTime();
-
     const timer = setInterval(updateCurrentTime, 60000);
-
     return () => clearInterval(timer);
   }, []);
+
+  const formatClockTime = (value) => {
+    if (!value) return "--";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "--";
+    return date.toLocaleTimeString("en-IN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  };
+
+  const formatWorkDuration = (record) => {
+    if (!record?.clock_in) return "0h 0m";
+
+    const start = new Date(record.clock_in).getTime();
+    const end = record.clock_out
+      ? new Date(record.clock_out).getTime()
+      : currentTime;
+
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) {
+      return "0h 0m";
+    }
+
+    const totalMinutes = Math.floor((end - start) / 60000);
+    return `${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m`;
+  };
+
+  const getAttendanceRecord = (employeeId) =>
+    attendanceRecords[String(employeeId)] || null;
 
   // MAIL ANNOUNCEMENT STATE
   const [mailDialogOpen, setMailDialogOpen] = useState(false);
@@ -155,7 +198,7 @@ const [creatingMeeting, setCreatingMeeting] = useState(false);
 
     if (/^https?:\/\//i.test(value)) return value;
 
-    return `http://localhost:4000${value.startsWith("/") ? "" : "/"}${value}`;
+    return `https://website-vltl.onrender.com${value.startsWith("/") ? "" : "/"}${value}`;
   };
 
 const fetchEmployees = useCallback(async (search = "") => {
@@ -166,7 +209,7 @@ const fetchEmployees = useCallback(async (search = "") => {
     // This keeps the real employee count independent from search results.
     if (!query) {
       const response = await axios.post(
-        "http://localhost:4000/webservices/users/get-all-users",
+        "https://website-vltl.onrender.com/webservices/users/get-all-users",
         {},
         {
           withCredentials: true,
@@ -195,7 +238,7 @@ const fetchEmployees = useCallback(async (search = "") => {
 
     // Search only changes the visible table.
     const response = await axios.post(
-      "http://localhost:4000/webservices/users/search-users",
+      "https://website-vltl.onrender.com/webservices/users/search-users",
       { search: query },
       {
         withCredentials: true,
@@ -335,12 +378,12 @@ const getNotificationSubtitle = (notification, currentTime) => {
   return relative;
 };
 
-const fetchNotifications = async () => {
+const fetchNotifications = useCallback(async () => {
   try {
     setNotificationLoading(true);
 
     const response = await axios.get(
-      "http://localhost:4000/notifications",
+      "https://website-vltl.onrender.com/notifications",
       {
         withCredentials: true,
       }
@@ -372,13 +415,18 @@ const fetchNotifications = async () => {
   } finally {
     setNotificationLoading(false);
   }
-};
+}, [getEmployeeCreatedTime]);
 
 const handleNotificationClick = async (notification) => {
+   if (!can("notifications.view")) {
+    setToastMessage("You do not have permission to view notifications.");
+    return;
+  }
+
   try {
     if (Number(notification?.is_read) === 0 && notification?.id) {
       await axios.post(
-        "http://localhost:4000/notifications/read",
+        "https://website-vltl.onrender.com/notifications/read",
         { id: notification.id },
         { withCredentials: true }
       );
@@ -395,10 +443,10 @@ const handleNotificationClick = async (notification) => {
 };
 
 
-const fetchPerformance = async () => {
+const fetchPerformance = useCallback(async () => {
   try {
     const response = await axios.get(
-      "http://localhost:4000/dashboard/performance",
+      "https://website-vltl.onrender.com/dashboard/performance",
       {
         withCredentials: true,
       }
@@ -410,7 +458,7 @@ const fetchPerformance = async () => {
   } catch (error) {
     console.log("Performance Fetch Error:", error);
   }
-};
+}, []);
 
 const handlePerformanceClick = (item) => {
   setSelectedPerformance(item);
@@ -444,7 +492,13 @@ const getMeetingLink = (meeting) => {
 };
 
 const openMeeting = (meeting) => {
-  const link = getMeetingLink(meeting);
+  if (!can("employees.meeting.view")) {
+    setToastMessage(
+      "You do not have permission to view meetings."
+    );
+    return;
+  }
+const link = getMeetingLink(meeting);
 
   if (!link) {
     setToastMessage(
@@ -465,10 +519,10 @@ const openMeeting = (meeting) => {
   );
 };
 
-const fetchMeetings = async () => {
+const fetchMeetings = useCallback(async () => {
   try {
     const response = await axios.get(
-      "http://localhost:4000/meetings",
+      "https://website-vltl.onrender.com/meetings",
       {
         withCredentials: true,
       }
@@ -492,14 +546,102 @@ const fetchMeetings = async () => {
   } catch (error) {
     console.log("Meetings Fetch Error:", error);
   }
-};
+}, []);
 
 
+const meetingsWithValidParticipants = meetings.map((meeting) => {
+  const validParticipants = (meeting.participants || [])
+    .map((participant) => {
+      const participantEmail = String(
+        participant.email || ""
+      ).trim().toLowerCase();
 
-const fetchUser = async () => {
+      const participantEmployeeId =
+        participant.employee_id ??
+        participant.user_id;
+
+      const employee = allEmployees.find((emp) => {
+        const employeeEmail = String(
+          emp.email || ""
+        ).trim().toLowerCase();
+
+        return (
+          (participantEmployeeId &&
+            Number(emp.id) === Number(participantEmployeeId)) ||
+          (participantEmail &&
+            employeeEmail === participantEmail)
+        );
+      });
+
+      // Employee was deleted -> remove participant
+      if (!employee) {
+        return null;
+      }
+
+      // Use current employee data
+      return {
+        ...participant,
+        id: employee.id,
+        name: employee.name,
+        email: employee.email,
+      };
+    })
+    .filter(Boolean);
+
+  return {
+    ...meeting,
+    participants: validParticipants,
+  };
+});
+
+const fetchAttendance = useCallback(async () => {
+  try {
+    setAttendanceLoading(true);
+
+    const response = await axios.get(
+      "https://website-vltl.onrender.com/attendance/today",
+      {
+        withCredentials: true,
+      }
+    );
+
+    console.log("========== ATTENDANCE RESPONSE ==========");
+    console.log("STATUS:", response.status);
+    console.log("DATA:", response.data);
+    console.log("==========================================");
+
+    if (response.data?.status === 1) {
+      const nextRecords = {};
+
+      (response.data.data || []).forEach((record) => {
+        console.log("ATTENDANCE RECORD:", record);
+
+        nextRecords[String(record.employee_id)] = record;
+      });
+
+      console.log("ATTENDANCE RECORDS MAP:", nextRecords);
+
+      setAttendanceRecords(nextRecords);
+    } else {
+      setAttendanceRecords({});
+    }
+  } catch (error) {
+    console.error(
+      "EMPLOYEE ATTENDANCE FETCH ERROR:",
+      error?.response?.status,
+      error?.response?.data || error.message
+    );
+
+    setAttendanceRecords({});
+  } finally {
+    setAttendanceLoading(false);
+  }
+}, []);
+
+const fetchUser = useCallback(async () => {
   try {
     const response = await axios.get(
-      "http://localhost:4000/auth/me",
+      "https://website-vltl.onrender.com/auth/me",
       {
         withCredentials: true,
       }
@@ -513,23 +655,102 @@ const fetchUser = async () => {
   } catch (error) {
     console.log(error);
   }
-};
+}, []);
 
 useEffect(() => {
-  fetchEmployees();
-  fetchPerformance();
-  fetchMeetings();
-  fetchNotifications();
   fetchUser();
-}, [fetchEmployees]);
+}, [fetchUser]);
 
 useEffect(() => {
+  const refreshPermissions = () => {
+    setPermissionVersion((current) => current + 1);
+  };
+
+  window.addEventListener("ems:roles-changed", refreshPermissions);
+  window.addEventListener("ems:permissions-changed", refreshPermissions);
+  window.addEventListener("storage", refreshPermissions);
+
+  return () => {
+    window.removeEventListener("ems:roles-changed", refreshPermissions);
+    window.removeEventListener("ems:permissions-changed", refreshPermissions);
+    window.removeEventListener("storage", refreshPermissions);
+  };
+}, []);
+
+useEffect(() => {
+  if (!user) return;
+
+  const loadEmployeesPage = async () => {
+    if (can("employees.view")) {
+      await fetchEmployees();
+    }
+
+    if (can("employees.performance.view")) {
+      await fetchPerformance();
+    }
+
+    if (can("employees.meeting.view")) {
+      await fetchMeetings();
+    }
+
+    if (can("notifications.view")) {
+      await fetchNotifications();
+    }
+
+    // Attendance is loaded after the employee list so the attendance
+    // records are ready when the table renders.
+    if (can("employees.attendance.view")) {
+      await fetchAttendance();
+    }
+  };
+
+  loadEmployeesPage();
+}, [
+  user,
+  fetchEmployees,
+  fetchPerformance,
+  fetchMeetings,
+  fetchNotifications,
+  fetchAttendance,
+  permissionVersion,
+]);
+
+// Refresh attendance whenever the Employees page becomes active again.
+// This is useful when an employee clocks in/out from the Profile page
+// and then returns to the Employees page.
+useEffect(() => {
+  const refreshAttendance = () => {
+    if (document.visibilityState !== "visible") return;
+    if (!user) return;
+    if (!can("employees.attendance.view")) return;
+
+    fetchAttendance();
+  };
+
+  window.addEventListener("focus", refreshAttendance);
+  document.addEventListener("visibilitychange", refreshAttendance);
+
+  return () => {
+    window.removeEventListener("focus", refreshAttendance);
+    document.removeEventListener("visibilitychange", refreshAttendance);
+  };
+}, [user, permissionVersion, fetchAttendance]);
+
+useEffect(() => {
+  if (!user) return;
+  if (!can("employees.view")) return;
+
+  if (!can("employees.search")) {
+    setSearchQuery("");
+    return;
+  }
+
   const timer = setTimeout(() => {
     fetchEmployees(searchQuery);
   }, 300);
 
   return () => clearTimeout(timer);
-}, [searchQuery, fetchEmployees,]);
+}, [user, searchQuery, fetchEmployees, permissionVersion]);
 
 const unreadCount = notifications.filter(
   (notification) => Number(notification?.is_read) === 0
@@ -537,9 +758,13 @@ const unreadCount = notifications.filter(
 
 
   const handleEditClick = async (id) => {
+    if (!can("employees.edit")) {
+  setToastMessage("You do not have permission to edit employees.");
+  return;
+}
   try {
     const response = await axios.post(
-      "http://localhost:4000/webservices/users/get-user-by-id",
+      "https://website-vltl.onrender.com/webservices/users/get-user-by-id",
       { id },
       {
         withCredentials: true,
@@ -552,9 +777,12 @@ const unreadCount = notifications.filter(
       setEditingEmployee(emp);
 
       setNewEmpName(emp.name);
-      setNewEmpRole(emp.role);
-      setNewEmpDept(emp.department);
-setNewEmpDesignation(emp.designation);
+      setNewEmpRole(emp.role || "");
+      setNewEmpDept(emp.department || "");
+      setNewEmpJoiningDate(
+        emp.joining_date || emp.joiningDate || emp.joined_date || emp.joinedDate || ""
+      );
+      setNewEmpDesignation(emp.designation || "");
 setNewEmpAttendance(emp.attendance);  
       setEditMode(true);
       setAddModalOpen(true);
@@ -566,6 +794,10 @@ setNewEmpAttendance(emp.attendance);
 
   // ADD EMPLOYEE HANDLER
  const handleAddEmployee = async () => {
+  if (!can("employees.create")) {
+  setToastMessage("You do not have permission to add employees.");
+  return;
+}
   if (!newEmpName) {
     setToastMessage("Please enter employee name.");
     return;
@@ -573,16 +805,18 @@ setNewEmpAttendance(emp.attendance);
 
   try {
     const response = await axios.post(
-      "http://localhost:4000/webservices/users/add-users",
+      "https://website-vltl.onrender.com/webservices/users/add-users",
      {
   name: newEmpName,
   email: `${newEmpName.toLowerCase().replace(/\s/g, "")}@gmail.com`,
   password: "123456",
-  role: "user",
+  role: newEmpRole,
   user_type: 3,
   profile_pic: "",
-  cover_pic: "",
-  department: newEmpDept,
+  cover_pic: "",                                                                                       
+  department: newEmpDept || null,
+  joining_date: newEmpJoiningDate || null,
+  joined_date: newEmpJoiningDate || null,
   designation: newEmpDesignation,
   attendance: newEmpAttendance,
   status: 1,
@@ -600,10 +834,12 @@ setNewEmpAttendance(emp.attendance);
 
       setNewEmpName("");
       setNewEmpDept("");
-setNewEmpDesignation("");
+      setNewEmpJoiningDate("");
+      setNewEmpDesignation("");
 setNewEmpRole("");
 
       await fetchEmployees();   // Refresh table + backend statistics
+      await fetchAttendance();
       await fetchNotifications(); // Refresh notification badge/feed
     } else {
       setToastMessage(response.data.message);
@@ -616,15 +852,22 @@ setNewEmpRole("");
 
 
 const handleUpdateEmployee = async () => {
+    if (!can("employees.edit")) {
+    setToastMessage("You do not have permission to edit employees.");
+    return;
+  }
+
   try {
     const response = await axios.post(
-      "http://localhost:4000/webservices/users/update-user",
+      "https://website-vltl.onrender.com/webservices/users/update-user",
       {
         id: editingEmployee.id,
         name: newEmpName,
         email: editingEmployee.email,
         role: newEmpRole,
-        department: newEmpDept,
+        department: newEmpDept || null,
+        joining_date: newEmpJoiningDate || null,
+        joined_date: newEmpJoiningDate || null,
         designation: newEmpDesignation,
         attendance: newEmpAttendance,
         user_type: editingEmployee.user_type,
@@ -657,11 +900,24 @@ const handleUpdateEmployee = async () => {
   }
 };
     
+  // OPEN EMPLOYEE PROFILE
+  const handleViewProfile = (employee) => {
+    if (!can("employees.view")) {
+      setToastMessage("You do not have permission to view employees.");
+      return;
+    }
+    setProfileEmployee(employee);
+  };
+
   // DELETE EMPLOYEE HANDLER
   const handleDeleteEmployee = async (id) => {
+    if (!can("employees.delete")) {
+  setToastMessage("You do not have permission to delete employees.");
+  return;
+}
   try {
     const response = await axios.post(
-      "http://localhost:4000/webservices/users/delete-user",
+      "https://website-vltl.onrender.com/webservices/users/delete-user",
       {
         id: id,
       },
@@ -682,100 +938,16 @@ const handleUpdateEmployee = async () => {
   }
 };
 
-<Box sx={{ mb: 3 }}>
-  <Typography
-    sx={{
-      fontWeight: 800,
-      mb: 1,
-    }}
-  >
-    Select Employees
-  </Typography>
-
-  <Box
-    sx={{
-      maxHeight: 220,
-      overflowY: "auto",
-      border: "1px solid #B6D9EA",
-      borderRadius: "12px",
-      p: 1,
-    }}
-  >
-    {employees
-      .filter((employee) => employee.email)
-      .map((employee) => {
-        const id = Number(employee.id);
-
-        return (
-          <Box
-            key={employee.id}
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              p: 1,
-              borderRadius: "8px",
-            }}
-          >
-            <Checkbox
-              checked={selectedEmployeeIds.includes(id)}
-              onChange={(e) => {
-                if (e.target.checked) {
-                  setSelectedEmployeeIds((prev) => [
-                    ...prev,
-                    id,
-                  ]);
-                } else {
-                  setSelectedEmployeeIds((prev) =>
-                    prev.filter(
-                      (selectedId) => selectedId !== id
-                    )
-                  );
-                }
-              }}
-            />
-
-            <Box>
-              <Typography
-                sx={{
-                  fontWeight: 700,
-                  fontSize: "14px",
-                }}
-              >
-                {employee.name}
-              </Typography>
-
-              <Typography
-                sx={{
-                  fontSize: "12px",
-                  color: "#64748B",
-                }}
-              >
-                {employee.email}
-              </Typography>
-            </Box>
-          </Box>
-        );
-      })}
-  </Box>
-
-  <Typography
-    sx={{
-      mt: 1,
-      fontSize: "13px",
-      fontWeight: 700,
-      color: "#0284C7",
-    }}
-  >
-    {selectedEmployeeIds.length} employee(s) selected
-  </Typography>
-</Box>
-
-
-  // SEND MAIL ANNOUNCEMENT TO ALL EMPLOYEES
-  
-
   // SEND MAIL ANNOUNCEMENT TO SELECTED EMPLOYEES
-const handleSendAnnouncement = async () => {
+
+  const handleSendAnnouncement = async () => {
+  if (!can("employees.email")) {
+    setToastMessage(
+      "You do not have permission to send announcements."
+    );
+    return;
+  }
+
   const subject = mailSubject.trim();
   const message = mailMessage.trim();
 
@@ -803,7 +975,7 @@ const handleSendAnnouncement = async () => {
     );
 
     const response = await axios.post(
-      "http://localhost:4000/webservices/mail/send-announcement",
+      "https://website-vltl.onrender.com/webservices/mail/send-announcement",
       {
         subject,
         message,
@@ -861,10 +1033,11 @@ const handleSendAnnouncement = async () => {
 };
 
 
-
-
-
 const handleCreateMeeting = async () => {
+  if (!can("employees.meeting.create")) {
+  setToastMessage("You do not have permission to create meetings.");
+  return;
+}
   if (!meetingTitle.trim()) {
     setToastMessage("Please enter a meeting title.");
     return;
@@ -894,7 +1067,7 @@ const handleCreateMeeting = async () => {
     setCreatingMeeting(true);
 
     const response = await axios.post(
-      "http://localhost:4000/meetings/create",
+      "https://website-vltl.onrender.com/meetings/create",
       {
         title: meetingTitle.trim(),
         date: meetingDate,
@@ -942,33 +1115,68 @@ const handleCreateMeeting = async () => {
   // FILTERED EMPLOYEES
 const filteredEmployees = employees.filter((emp) => {
   const matchesDepartment =
-    activeFilter === "All" || emp.department === activeFilter;
+    activeFilter === "All" || (emp.department || "") === activeFilter;
 
   return matchesDepartment;
 });
 
+
   // EXACT MATCHING DASHBOARD COLOR THEME TOKENS
   const bgPageGradient = darkMode
-    ? "linear-gradient(135deg, #090D16 0%, #0F172A 50%, #080C14 100%)"
-    : "linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 50%, #DBEAFE 100%)";
+    ? "radial-gradient(circle at 12% 0%, rgba(37,99,235,.16), transparent 30%), linear-gradient(135deg, #070B14 0%, #0F172A 52%, #111827 100%)"
+    : "radial-gradient(circle at 85% 0%, rgba(96,165,250,.18), transparent 26%), linear-gradient(135deg, #DCEBFA 0%, #EAF2FA 45%, #E4ECF8 100%)";
 
   const bgSidebarGradient = darkMode
-    ? "linear-gradient(180deg, #0F172A 0%, #1E293B 60%, #090D16 100%)"
-    : "linear-gradient(180deg, #0284C7 0%, #0369A1 60%, #075985 100%)";
+    ? "linear-gradient(180deg, #0B1220 0%, #111C33 55%, #070B14 100%)"
+    : "linear-gradient(180deg, #111D3A 0%, #172554 58%, #0F172A 100%)";
 
-  const textPrimary = darkMode ? "#F8FAFC" : "#0F172A";
-  const textSecondary = darkMode ? "#94A3B8" : "#0284C7";
-  const lineDivider = darkMode ? "rgba(255,255,255,0.08)" : "rgba(2,132,199,0.15)";
-  const bgBoxContainer = darkMode ? "rgba(15, 23, 42, 0.7)" : "rgba(255, 255, 255, 0.75)";
+  const textPrimary = darkMode ? "#F8FAFC" : "#172033";
+  const textSecondary = darkMode ? "#A8B4C7" : "#64748B";
+  const lineDivider = darkMode ? "rgba(148,163,184,0.12)" : "rgba(15,23,42,0.08)";
 
   // Streamlined Sidebar Menu List
   const sidebarItems = [
-    { text: "Dashboard", icon: <DashboardIcon />, path: "/dashboard" },
-    { text: "Employees", icon: <PeopleIcon />, path: "/employees" },
-    { text: "Profile", icon: <PersonIcon />, path: "/profile" },
-    { text: "Edit Profile", icon: <EditIcon />, path: "/edit-profile" },
-    { text: "Change Password", icon: <LockIcon />, path: "/change-password" },
-  ];
+  {
+    text: "Dashboard",
+    icon: <DashboardIcon />,
+    path: "/dashboard",
+    permission: "dashboard.view",
+  },
+  {
+    text: "Employees",
+    icon: <PeopleIcon />,
+    path: "/employees",
+    permission: "employees.view",
+  },
+  {
+    text: "Profile",
+    icon: <PersonIcon />,
+    path: "/profile",
+    permission: "profile.view",
+  },
+  {
+    text: "Edit Profile",
+    icon: <EditIcon />,
+    path: "/edit-profile",
+    permission: "profile.edit",
+  },
+  {
+    text: "Change Password",
+    icon: <LockIcon />,
+    path: "/change-password",
+    permission: "password.view",
+  },
+  {
+    text: "User Roles",
+    icon: <PeopleIcon />,
+    path: "/user-roles",
+    permission: "permissions.manage",
+  },
+];
+
+const visibleSidebarItems = sidebarItems.filter(
+  (item) => can(item.permission)
+);
 
 
 // ===============================
@@ -1003,137 +1211,176 @@ const attendanceRate =
       ) || 0
     : 0;
 
-  return (
-
-   
-
-
-    <Box
-      sx={{
-        display: "flex",
-        width: "100%",
-        minHeight: "100vh",
-        background: bgPageGradient,
-        backgroundAttachment: "fixed",
-        color: textPrimary,
-        transition: "background 0.4s ease, color 0.4s ease",
-        fontFamily: "'Inter', sans-serif",
-      }}
-    >
-      {/* LEFT SIDEBAR NAVIGATION */}
+  if (user && !can("employees.view")) {
+    return (
       <Box
         sx={{
-          width: 250,
-          background: bgSidebarGradient,
-          borderRight: `1px solid ${lineDivider}`,
+          minHeight: "100vh",
           display: "flex",
-          flexDirection: "column",
-          justifyContent: "space-between",
-          p: 2.5,
-          position: "fixed",
-          height: "100vh",
-          boxSizing: "border-box",
-          zIndex: 10,
-          boxShadow: "10px 0 35px rgba(0, 0, 0, 0.2)",
+          alignItems: "center",
+          justifyContent: "center",
+          p: 3,
+          background: bgPageGradient,
+          color: textPrimary,
+          fontFamily: "'Inter', sans-serif",
         }}
       >
-        <Box>
-          {/* BRAND LOGO */}
-          <Box display="flex" alignItems="center" gap={1.5} mb={4} px={1}>
-            <Box
-              sx={{
-                width: 42,
-                height: 42,
-                borderRadius: "14px",
-                background: "linear-gradient(135deg, #06B6D4 0%, #0284C7 100%)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#FFFFFF",
-                fontWeight: 800,
-                boxShadow: "0 8px 24px rgba(6, 182, 212, 0.45)",
-              }}
-            >
-              E
-            </Box>
-            <Typography variant="h6" fontWeight="800" letterSpacing={0.5} sx={{ color: "#FFFFFF" }}>
-              EMS Portal
-            </Typography>
-          </Box>
-
-          {/* SIDEBAR MENU ITEMS */}
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-            {sidebarItems.map((item) => {
-              const isActive = activeTab === item.text;
-              return (
-                <Button
-                  key={item.text}
-                  fullWidth
-                  startIcon={React.cloneElement(item.icon, {
-                    style: { color: isActive ? "#FFFFFF" : "#BAE6FD", fontSize: "20px" },
-                  })}
-                  onClick={() => {
-                    setActiveTab(item.text);
-                    if (item.path !== "/employees") navigate(item.path);
-                  }}
-                  sx={{
-                    justifyContent: "flex-start",
-                    height: 48,
-                    borderRadius: "16px",
-                    px: 2,
-                    textTransform: "none",
-                    fontWeight: isActive ? 700 : 600,
-                    fontSize: "14px",
-                    color: isActive ? "#FFFFFF" : "#BAE6FD",
-                    backgroundColor: isActive ? "#0284C7" : "transparent",
-                    boxShadow: isActive ? "0 6px 18px rgba(2, 132, 199, 0.45)" : "none",
-                    transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
-                    "&:hover": {
-                      backgroundColor: isActive ? "#0369A1" : "rgba(255, 255, 255, 0.12)",
-                      transform: "translateX(4px)",
-                      color: "#FFFFFF",
-                    },
-                  }}
-                >
-                  {item.text}
-                </Button>
-              );
-            })}
-          </Box>
+        <Box sx={{
+          maxWidth: 520, width: "100%", p: 5, borderRadius: "28px",
+          textAlign: "center",
+          backgroundColor: darkMode ? "rgba(15,23,42,.86)" : "rgba(255,255,255,.88)",
+          border: `1px solid ${lineDivider}`,
+          boxShadow: darkMode ? "0 24px 60px rgba(0,0,0,.28)" : "0 24px 60px rgba(37,99,235,.12)",
+          backdropFilter: "blur(16px)",
+        }}>
+          <Typography variant="h5" fontWeight={900} sx={{ mb: 1.5 }}>Access Denied</Typography>
+          <Typography sx={{ color: textSecondary, mb: 3 }}>
+            You do not have permission to view Employees.
+          </Typography>
+          <Button variant="contained" onClick={() => navigate("/")} sx={{
+            borderRadius: "14px", textTransform: "none", fontWeight: 800, px: 3
+          }}>
+            Return to Login
+          </Button>
         </Box>
-
-        {/* LOGOUT BUTTON */}
-        <Button
-          fullWidth
-          startIcon={<LogoutIcon />}
-          onClick={() => navigate("/")}
-          sx={{
-            borderRadius: "16px",
-            height: 48,
-            textTransform: "none",
-            fontWeight: 700,
-            color: "#F87171",
-            backgroundColor: "rgba(239, 68, 68, 0.18)",
-            border: "1px solid rgba(239, 68, 68, 0.35)",
-            transition: "all 0.2s ease",
-            "&:hover": {
-              backgroundColor: "rgba(239, 68, 68, 0.3)",
-              transform: "translateY(-2px)",
-            },
-          }}
-        >
-          Logout Session
-        </Button>
       </Box>
+    );
+  }
 
-      {/* MAIN DASHBOARD CONTENT AREA */}
+  return (
+   
+       <Box
+         sx={{
+           display: "flex",
+           width: "100%",
+           minHeight: "100vh",
+           background: bgPageGradient,
+           backgroundAttachment: "fixed",
+           color: textPrimary,
+           transition: "background 0.4s ease, color 0.4s ease",
+           fontFamily: "'Inter', sans-serif",
+         }}
+       >
+         {/* LEFT SIDEBAR NAVIGATION */}
+         <Box
+           sx={{
+             width: 250,
+             background: bgSidebarGradient,
+             borderRight: `1px solid ${lineDivider}`,
+             display: "flex",
+             flexDirection: "column",
+             justifyContent: "space-between",
+             p: 2.5,
+             position: "fixed",
+             height: "100vh",
+             boxSizing: "border-box",
+             zIndex: 10,
+             boxShadow: "10px 0 35px rgba(0, 0, 0, 0.2)",
+           }}
+         >
+           <Box>
+                     {/* BRAND LOGO */}
+                     <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 4, px: 1 }}>
+                       <Box
+                         sx={{
+                           width: 42,
+                           height: 42,
+                           borderRadius: "14px",
+                           background: "linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)",
+                           display: "flex",
+                           alignItems: "center",
+                           justifyContent: "center",
+                           color: "#FFFFFF",
+                           fontWeight: 800,
+                           boxShadow: "0 8px 24px rgba(37, 99, 235, 0.45)",
+                         }}
+                       >
+                         E
+                       </Box>
+                       <Typography variant="h6" fontWeight="800" letterSpacing={0.5} sx={{ color: "#FFFFFF" }}>
+                         EMS Portal
+                       </Typography>
+                     </Box>
+             {/* SIDEBAR MENU ITEMS */}
+             <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+               {visibleSidebarItems.map((item) => {
+                 const isActive = activeTab === item.text;
+                 return (
+                   <Button
+                     key={item.text}
+                     fullWidth
+                     startIcon={React.cloneElement(item.icon, {
+                       style: { color: isActive ? "#FFFFFF" : "#CBD5E1", fontSize: "20px" },
+                     })}
+                     onClick={() => {
+  setActiveTab(item.text);
+  navigate(item.path);
+}}
+                     sx={{
+                       justifyContent: "flex-start",
+                       height: 48,
+                       borderRadius: "16px",
+                       px: 2,
+                       textTransform: "none",
+                       fontWeight: isActive ? 700 : 600,
+                       fontSize: "14px",
+                       color: isActive ? "#FFFFFF" : "#CBD5E1",
+                       backgroundColor: isActive ? "#1D4ED8" : "transparent",
+                       boxShadow: isActive ? "0 6px 18px rgba(2, 132, 199, 0.45)" : "none",
+                       transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+                       "&:hover": {
+                         backgroundColor: isActive ? "#1E40AF" : "rgba(255, 255, 255, 0.12)",
+                         transform: "translateX(4px)",
+                         color: "#FFFFFF",
+                       },
+                     }}
+                   >
+                     {item.text}
+                   </Button>
+                 );
+               })}
+             </Box>
+           </Box>
+   
+           {/* LOGOUT BUTTON */}
+           <Button
+             fullWidth
+             startIcon={<LogoutIcon />}
+             onClick={() => navigate("/")}
+             sx={{
+               borderRadius: "16px",
+               height: 48,
+               textTransform: "none",
+               fontWeight: 700,
+               color: "#F87171",
+               backgroundColor: "rgba(239, 68, 68, 0.18)",
+               border: "1px solid rgba(239, 68, 68, 0.35)",
+               transition: "all 0.2s ease",
+               "&:hover": {
+                 backgroundColor: "rgba(239, 68, 68, 0.3)",
+                 transform: "translateY(-2px)",
+               },
+             }}
+           >
+             Logout Session
+           </Button>
+         </Box>
+
+
+      {/* MAIN DASHBOARD CONTENT AREA
+          Sidebar is fixed at 250px. The content starts after the full
+          sidebar width, so no dashboard content can overlap it. */}
       <Box
         sx={{
           flex: 1,
-          ml: "250px",
-          p: { xs: 3, md: 5 },
+          ml: { xs: "0px", md: "250px" },
+          p: { xs: 2, sm: 2.5, md: 3 },
+          position: "relative",
+          zIndex: 1,
           boxSizing: "border-box",
-          maxWidth: "calc(100vw - 250px)",
+          width: { xs: "100%", md: "calc(100% - 250px)" },
+          maxWidth: { xs: "100%", md: "calc(100vw - 250px)" },
+          minWidth: 0,
         }}
       >
         {/* TOP NAVIGATION HEADER BAR - SEARCH ON LEFT / ACTIONS ON SAME HORIZONTAL ROW ON RIGHT */}
@@ -1144,29 +1391,30 @@ const attendanceRate =
             justifyContent: "space-between",
             alignItems: "center",
             width: "100%",
-            mb: 5,
+            mb: 3.5,
           }}
         >
           {/* SEARCH BAR (TOP LEFT) */}
-          <TextField
-            placeholder="Search team members, departments, or roles..."
-            size="small"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            sx={{
-              width: { xs: 240, sm: 380, md: 480 },
+          {can("employees.search") && (
+            <TextField
+              placeholder="Search team members, departments, or roles..."
+              size="small"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              sx={{
+              width: { xs: 240, sm: 360, md: 420 },
               "& .MuiOutlinedInput-root": {
                 height: 48,
                 borderRadius: "24px",
-                backgroundColor: darkMode ? "rgba(15, 23, 42, 0.6)" : "rgba(255, 255, 255, 0.8)",
+                backgroundColor: darkMode ? "rgba(15,23,42,.72)" : "rgba(255,255,255,.82)",
                 backdropFilter: "blur(12px)",
                 color: textPrimary,
                 fontSize: "14px",
-                boxShadow: "0 4px 20px rgba(6, 182, 212, 0.08)",
+                boxShadow: "0 4px 20px rgba(37, 99, 235, 0.08)",
                 transition: "all 0.3s ease",
                 "& fieldset": { borderColor: lineDivider },
-                "&:hover fieldset": { borderColor: "#06B6D4" },
-                "&.Mui-focused fieldset": { borderColor: "#06B6D4", boxShadow: "0 0 16px rgba(6, 182, 212, 0.35)" },
+                "&:hover fieldset": { borderColor: "#2563EB" },
+                "&.Mui-focused fieldset": { borderColor: "#2563EB", boxShadow: "0 0 16px rgba(37, 99, 235, 0.35)" },
               },
             }}
             slotProps={{
@@ -1178,238 +1426,436 @@ const attendanceRate =
                 ),
               },
             }}
-          />
-{/* TOP RIGHT ACTIONS (DARK THEME TOGGLE, NOTIFICATIONS & AVATAR ALIGNED ON SAME HORIZONTAL LINE) */}
-          <Box display="flex" alignItems="center" gap={2} >
-            {/* 1. DARK / LIGHT THEME TOGGLE BUTTON */}
-            <Tooltip title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}>
+            />
+          )}
+
+
+       {/* TOP RIGHT ACTIONS: DARK MODE + NOTIFICATIONS + AVATAR */}
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "flex-end",
+              gap: 1.25,
+              flexShrink: 0,
+              marginLeft: "auto",
+            }}
+          >
+            {/* DARK / LIGHT MODE */}
+            <Tooltip
+              title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+            >
               <IconButton
                 onClick={toggleTheme}
-                sx={{ml:-12,
-                  backgroundColor: darkMode ? "rgba(2, 7, 15, 0.8)" : "rgba(224, 242, 254, 0.8)",
-                  p: 1.2,
-                  borderRadius: "16px",
+                sx={{
+                  width: 44,
+                  height: 44,
+                  p: 0,
+                  borderRadius: "14px",
+                  backgroundColor: darkMode
+                    ? "rgba(30, 41, 59, 0.9)"
+                    : "rgba(224, 242, 254, 0.9)",
                   color: textPrimary,
-                  transition: "transform 0.2s ease",
-                  "&:hover": { transform: "rotate(15deg)" },
+                  transition: "all 0.2s ease",
+                  "&:hover": {
+                    backgroundColor: darkMode
+                      ? "rgba(51, 65, 85, 1)"
+                      : "rgba(186, 230, 253, 1)",
+                    transform: "scale(1.05)",
+                  },
                 }}
               >
-                {darkMode
-                  ? <LightModeIcon sx={{ fontSize: 20, color: "#000000" }} />
-                  : <DarkModeIcon sx={{ fontSize: 20, color: "#000000" }} />}
+                {darkMode ? (
+                  <LightModeIcon sx={{ fontSize: 21, color: textPrimary }} />
+                ) : (
+                  <DarkModeIcon sx={{ fontSize: 21, color: textPrimary }} />
+                )}
               </IconButton>
             </Tooltip>
 
-            {/* 2. NOTIFICATIONS BELL BUTTON */}
-            <IconButton
-              onClick={(e) => {
-                setNotifAnchorEl(e.currentTarget);
-                fetchNotifications();
-              }}
-              sx={{
-                backgroundColor: darkMode ? "rgba(30, 41, 59, 0.8)" : "rgba(224, 242, 254, 0.8)",
-                p: 1.2,
-                borderRadius: "16px",
-                transition: "transform 0.2s ease",
-                "&:hover": { transform: "scale(1.05)" },
-              }}
-            >
-              <Badge
-                badgeContent={unreadCount}
-                color="error"
-                invisible={unreadCount === 0}
-              >
-                <NotificationsNoneIcon sx={{ color: textPrimary, fontSize: 20 }} />
-              </Badge>
-            </IconButton>
-
-            <Menu
-              anchorEl={notifAnchorEl}
-              open={Boolean(notifAnchorEl)}
-              onClose={() => setNotifAnchorEl(null)}
-              PaperProps={{
-                sx: {
-                  borderRadius: "20px",
-                  width: 360,
-                  maxHeight: 520,
-                  p: 1,
-                  backgroundColor: darkMode ? "#0F172A !important" : "#FFFFFF !important",
-                  color: textPrimary,
-                  boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
-                },
-              }}
-            >
-              <Typography
-                variant="subtitle2"
-                fontWeight="800"
-                sx={{ p: 1.5, fontSize: "16px" }}
-              >
-                Notifications & Alerts
-              </Typography>
-
-              <Divider sx={{ my: 1, borderColor: lineDivider }} />
-
-              {notificationLoading ? (
-                <MenuItem disabled>
-                  <Typography variant="body2">
-                    Loading notifications...
-                  </Typography>
-                </MenuItem>
-              ) : notifications.length === 0 ? (
-                <MenuItem disabled>
-                  <Typography variant="body2">
-                    No notifications
-                  </Typography>
-                </MenuItem>
-              ) : (
-                notifications.map((notification, index) => (
-                  <MenuItem
-                    key={notification.id || index}
-                    onClick={() =>
-                      handleNotificationClick(notification)
-                    }
+            {/* NOTIFICATIONS */}
+            {can("notifications.view") && (
+              <>
+                <Tooltip title="Notifications">
+                  <IconButton
+                    onClick={(e) => {
+                      setNotifAnchorEl(e.currentTarget);
+                      fetchNotifications();
+                    }}
                     sx={{
-                      borderRadius: 0,
-                      p: 1.8,
-                      mb: 0,
-                      alignItems: "flex-start",
-                      borderBottom: `1px solid ${lineDivider}`,
-                      backgroundColor:
-                        Number(notification.is_read) === 0
-                          ? darkMode
-                            ? "rgba(30,41,59,0.95)"
-                            : "#F0F9FF"
-                          : "transparent",
+                      width: 44,
+                      height: 44,
+                      p: 0,
+                      borderRadius: "14px",
+                      backgroundColor: darkMode
+                        ? "rgba(30, 41, 59, 0.9)"
+                        : "rgba(224, 242, 254, 0.9)",
+                      color: textPrimary,
+                      transition: "all 0.2s ease",
+                      "&:hover": {
+                        backgroundColor: darkMode
+                          ? "rgba(51, 65, 85, 1)"
+                          : "rgba(186, 230, 253, 1)",
+                        transform: "scale(1.05)",
+                      },
                     }}
                   >
-                    <Box sx={{ width: "100%" }}>
-                      <Typography
-  sx={{
-    fontSize: 15,
-    lineHeight: 1.35,
-    fontWeight: 800,
-    color: darkMode ? "#F8FAFC" : "#172033",
-    mb: 0.4,
-  }}
->
+                    <Badge
+                      badgeContent={unreadCount}
+                      color="error"
+                      invisible={unreadCount === 0}
+                      sx={{
+                        "& .MuiBadge-badge": {
+                          minWidth: 18,
+                          height: 18,
+                          fontSize: 10,
+                          fontWeight: 800,
+                          top: 1,
+                          right: 1,
+                        },
+                      }}
+                    >
+                      <NotificationsNoneIcon
+                        sx={{ color: textPrimary, fontSize: 21 }}
+                      />
+                    </Badge>
+                  </IconButton>
+                </Tooltip>
 
-                        {notification.title ||
-                          notification.message ||
-                          notification.type ||
-                          "Notification"}
+                {/* NOTIFICATION MENU */}
+                <Menu
+                  anchorEl={notifAnchorEl}
+                  open={Boolean(notifAnchorEl)}
+                  onClose={() => setNotifAnchorEl(null)}
+                  anchorOrigin={{
+                    vertical: "bottom",
+                    horizontal: "right",
+                  }}
+                  transformOrigin={{
+                    vertical: "top",
+                    horizontal: "right",
+                  }}
+                  PaperProps={{
+                    sx: {
+                      mt: 1,
+                      borderRadius: "20px",
+                      width: 360,
+                      maxWidth: "calc(100vw - 24px)",
+                      maxHeight: 520,
+                      p: 1,
+                      backgroundColor: darkMode
+                        ? "#0B1220 !important"
+                        : "#FFFFFF !important",
+                      color: textPrimary,
+                      boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
+                    },
+                  }}
+                >
+                  <Typography
+                    variant="subtitle2"
+                    fontWeight="800"
+                    sx={{ p: 1.5, fontSize: "16px" }}
+                  >
+                    Notifications & Alerts
+                  </Typography>
+
+                  <Divider sx={{ my: 1, borderColor: lineDivider }} />
+
+                  {notificationLoading ? (
+                    <MenuItem disabled>
+                      <Typography variant="body2">
+                        Loading notifications...
                       </Typography>
-
-                      <Typography
-                        variant="caption"
+                    </MenuItem>
+                  ) : notifications.length === 0 ? (
+                    <MenuItem disabled>
+                      <Typography variant="body2">
+                        No notifications
+                      </Typography>
+                    </MenuItem>
+                  ) : (
+                    notifications.map((notification, index) => (
+                      <MenuItem
+                        key={notification.id || index}
+                        onClick={() => handleNotificationClick(notification)}
                         sx={{
-                          display: "block",
-                          mt: 0.55,
-                          color: "#0284C7",
-                          fontWeight: 600,
-                          fontSize: "12px",
+                          borderRadius: 0,
+                          p: 1.8,
+                          mb: 0,
+                          alignItems: "flex-start",
+                          borderBottom: `1px solid ${lineDivider}`,
+                          backgroundColor:
+                            Number(notification.is_read) === 0
+                              ? darkMode
+                                ? "rgba(30,41,59,0.95)"
+                                : "#F8FAFC"
+                              : "transparent",
                         }}
                       >
-                        {getNotificationSubtitle(notification, currentTime)}
-                      </Typography>
-                    </Box>
-                  </MenuItem>
-                ))
-              )}
-            </Menu>
+                        <Box sx={{ width: "100%" }}>
+                          <Typography
+                            sx={{
+                              fontSize: 15,
+                              lineHeight: 1.35,
+                              fontWeight: 800,
+                              color: darkMode ? "#F8FAFC" : "#172033",
+                              mb: 0.4,
+                            }}
+                          >
+                            {notification.title ||
+                              notification.message ||
+                              notification.type ||
+                              "Notification"}
+                          </Typography>
 
-            <Divider orientation="vertical" flexItem sx={{ height: 28, borderColor: lineDivider }} />
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              display: "block",
+                              mt: 0.55,
+                              color: "#1D4ED8",
+                              fontWeight: 600,
+                              fontSize: "12px",
+                            }}
+                          >
+                            {getNotificationSubtitle(notification, currentTime)}
+                          </Typography>
+                        </Box>
+                      </MenuItem>
+                    ))
+                  )}
+                </Menu>
+              </>
+            )}
 
-            {/* 3. USER PROFILE AVATAR & NAME */}
-            <Box onClick={(e) => setProfileAnchorEl(e.currentTarget)} sx={{ mt:-9,display: "flex", alignItems: "center", gap: 1.5, cursor: "pointer" }}>
-             <Avatar
-  src={user?.profile_pic}
-  alt={user?.name}
-  sx={{
-    width: 42,
-    height: 42,
-    border: "2px solid #06B6D4",
-    boxShadow: "0 0 12px rgba(6,182,212,0.4)",
-  }}
->
-  {user?.name?.charAt(0)}
-</Avatar>
-              <Box sx={{ display: { xs: "none", md: "block" } }}>
-               <Typography
-  variant="subtitle2"
-  sx={{ fontWeight: 400 }}
->
-  {user?.name}
-</Typography>
+            {/* USER PROFILE AVATAR + NAME */}
+            <Box
+              onClick={(e) => setProfileAnchorEl(e.currentTarget)}
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 1.25,
+                cursor: "pointer",
+                flexShrink: 0,
+                minWidth: "fit-content",
+              }}
+            >
+              <Avatar
+                src={user?.profile_pic}
+                alt={user?.name}
+                sx={{
+                  width: 42,
+                  height: 42,
+                  flexShrink: 0,
+                  border: "2px solid #2563EB",
+                  boxShadow: "0 0 12px rgba(37,99,235,0.4)",
+                  backgroundColor: darkMode ? "#475569" : "#BDBDBD",
+                  color: "#FFFFFF",
+                  fontWeight: 700,
+                }}
+              >
+                {user?.name?.charAt(0)}
+              </Avatar>
 
-<Typography
-  variant="caption"
-  sx={{ color: textSecondary }}
->
-  {user?.role}
-</Typography>
+              <Box
+                sx={{
+                  display: { xs: "none", md: "block" },
+                  minWidth: 80,
+                }}
+              >
+                <Typography
+                  variant="subtitle2"
+                  sx={{
+                    
+                    color: textPrimary,
+                    lineHeight: 1.2,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {user?.name}
+                </Typography>
+
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: textSecondary,
+                    lineHeight: 1.2,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {user?.role}
+                </Typography>
               </Box>
             </Box>
 
+            {/* PROFILE MENU */}
             <Menu
               anchorEl={profileAnchorEl}
               open={Boolean(profileAnchorEl)}
               onClose={() => setProfileAnchorEl(null)}
+              anchorOrigin={{
+                vertical: "bottom",
+                horizontal: "right",
+              }}
+              transformOrigin={{
+                vertical: "top",
+                horizontal: "right",
+              }}
               PaperProps={{
                 sx: {
+                  mt: 1,
                   borderRadius: "18px",
                   width: 190,
                   p: 1,
-                  backgroundColor: darkMode ? "#0F172A !important" : "#FFFFFF !important",
+                  backgroundColor: darkMode
+                    ? "#0B1220 !important"
+                    : "#FFFFFF !important",
                   color: textPrimary,
                 },
               }}
             >
-              <MenuItem onClick={() => { setProfileAnchorEl(null); navigate("/profile"); }} sx={{ fontWeight: 700 }}>My Profile</MenuItem>
-              <MenuItem onClick={() => { setProfileAnchorEl(null); navigate("/edit-profile"); }} sx={{ fontWeight: 700 }}>Edit Profile</MenuItem>
-              <MenuItem onClick={() => { setProfileAnchorEl(null); navigate("/change-password"); }} sx={{ fontWeight: 700 }}>Change Password</MenuItem>
+              {can("profile.view") && (
+                <MenuItem
+                  onClick={() => {
+                    setProfileAnchorEl(null);
+                    navigate("/profile");
+                  }}
+                  sx={{ fontWeight: 700 }}
+                >
+                  My Profile
+                </MenuItem>
+              )}
+
+              {can("profile.edit") && (
+                <MenuItem
+                  onClick={() => {
+                    setProfileAnchorEl(null);
+                    navigate("/edit-profile");
+                  }}
+                  sx={{ fontWeight: 700 }}
+                >
+                  Edit Profile
+                </MenuItem>
+              )}
+
+              {can("password.change") && (
+                <MenuItem
+                  onClick={() => {
+                    setProfileAnchorEl(null);
+                    navigate("/change-password");
+                  }}
+                  sx={{ fontWeight: 700 }}
+                >
+                  Change Password
+                </MenuItem>
+              )}
+
               <Divider sx={{ my: 1, borderColor: lineDivider }} />
-              <MenuItem onClick={() => navigate("/")} sx={{ color: "#FF4D4D !important", fontWeight: 800 }}>Logout</MenuItem>
+
+              <MenuItem
+                onClick={() => navigate("/")}
+                sx={{ color: "#FF4D4D !important", fontWeight: 800 }}
+              >
+                Logout
+              </MenuItem>
             </Menu>
           </Box>
         </Box>
 
+
         {/* HERO TITLE BANNER */}
-        <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2} mb={5}>
+        <Box
+          sx={{
+            mb: 5,
+            p: { xs: 2.5, md: 3.5 },
+            borderRadius: "28px",
+            background: darkMode
+              ? "linear-gradient(120deg, #182B58 0%, #334EAA 48%, #101B38 100%)"
+              : "linear-gradient(120deg, #B8C8FF 0%, #C9D6FF 45%, #B9D8F5 100%)",
+            border: darkMode
+              ? "1px solid rgba(255,255,255,.10)"
+              : "1px solid rgba(255,255,255,.75)",
+            boxShadow: darkMode
+              ? "0 24px 55px rgba(0,0,0,.24)"
+              : "0 24px 55px rgba(48,75,130,.18)",
+          }}
+        >
+        <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2}>
           <Box>
-            <Typography variant="h3" fontWeight="900" sx={{ color: textPrimary, letterSpacing: "-0.02em" }}>
+            <Typography variant="h3" fontWeight="900" sx={{ color: darkMode ? "#FFFFFF" : "#10234B", letterSpacing: "-0.045em", fontSize: { xs: 29, md: 40 } }}>
               Workforce Roster Directory
             </Typography>
-            <Typography variant="body1" sx={{ color: textSecondary, mt: 0.5, fontSize: "16px" }}>
+            <Typography variant="body1" sx={{ color: darkMode ? "rgba(255,255,255,.76)" : "#47648F", mt: 1, fontSize: "14px", lineHeight: 1.7 }}>
               Manage active employees, department allocations, and productivity benchmarks
             </Typography>
           </Box>
 
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => {
-  setEditMode(false);
-  setEditingEmployee(null);
-  setAddModalOpen(true);
-}}
+          <Box display="flex" gap={1.5} flexWrap="wrap" justifyContent="flex-end">
+            {can("employees.meeting.create") && (
+  <Button
+    variant="contained"
+    startIcon={<VideoCallIcon />}
+    onClick={() => {
+                setMeetingTitle("");
+                setMeetingDate("");
+                setMeetingStartTime("");
+                setMeetingEndTime("");
+                setSelectedMeetingEmployeeIds([]);
+                setMeetingDialogOpen(true);
+              }}
+              sx={{
+                mt: 2,
+                mb: 3,
+                borderRadius: "18px",
+                background: "linear-gradient(135deg, #16A34A 0%, #15803D 100%)",
+                color: "#FFFFFF",
+                px: 3.5,
+                py: 1.4,
+                fontWeight: 800,
+                fontSize: "14px",
+                textTransform: "none",
+                boxShadow: "0 8px 24px rgba(22, 163, 74, 0.35)",
+                transition: "all 0.25s ease",
+                "&:hover": {
+                  background: "linear-gradient(135deg, #15803D 0%, #166534 100%)",
+                  transform: "translateY(-2px)",
+                },
+              }}
+            >
+              Google Meet
+            </Button>
+            )}
+            {can("employees.create") && (
+  <Button
+    variant="contained"
+    startIcon={<AddIcon />}
+    onClick={() => {
+      setEditMode(false);
+      setEditingEmployee(null);
+      setAddModalOpen(true);
+    }}
             sx={{
+              ml:6,
               mt:2,
               mb:3,
-              borderRadius: "18px",
-              background: "linear-gradient(135deg, #06B6D4 0%, #0284C7 100%)",
+              borderRadius: "14px",
+              background: "linear-gradient(135deg, #2563EB 0%, #4F46E5 100%)",
               color: "#FFFFFF",
               px: 3.5,
               py: 1.4,
               fontWeight: 800,
               fontSize: "14px",
               textTransform: "none",
-              boxShadow: "0 8px 24px rgba(6, 182, 212, 0.4)",
+              boxShadow: "0 10px 26px rgba(37,99,235,.24)",
               transition: "all 0.25s ease",
-              "&:hover": { background: "linear-gradient(135deg, #0284C7 0%, #0369A1 100%)", transform: "translateY(-2px)" },
+              "&:hover": { background: "linear-gradient(135deg, #1D4ED8 0%, #1E40AF 100%)", transform: "translateY(-2px)" },
             }}
           >
             Add New Employee
           </Button>
+            )}
+          </Box>
+        </Box>
         </Box>
 
         {/* 4 DASHBOARD MATCHING STAT COUNTERS */}
@@ -1422,7 +1868,7 @@ const attendanceRate =
               sm: "repeat(2, minmax(0, 1fr))",
               md: "repeat(4, minmax(0, 1fr))",
             },
-            gap: 4,
+            gap: 1.75,
           }}
         >
           {[
@@ -1430,8 +1876,9 @@ const attendanceRate =
     title: "Total Employees",
     value: totalEmployees.toString(),
     sub: "Active workforce",
-    color: "#06B6D4",
+    color: "#2563EB",
     icon: <GroupsIcon sx={{ fontSize: 26 }} />,
+    permission: "dashboard.stats",
   },
   {
     title: "Active Departments",
@@ -1439,6 +1886,7 @@ const attendanceRate =
     sub: "From employee records",
     color: "#10B981",
     icon: <WorkspacesIcon sx={{ fontSize: 26 }} />,
+    permission: "dashboard.stats",
   },
   {
     title: "Attendance Rate",
@@ -1446,6 +1894,7 @@ const attendanceRate =
     sub: `${presentEmployees} present today`,
     color: "#F59E0B",
     icon: <EventAvailableIcon sx={{ fontSize: 26 }} />,
+    permission: "employees.attendance.view",
   },
   {
   title: "Productivity Index",
@@ -1453,27 +1902,72 @@ const attendanceRate =
   sub: "Based on 3 Months performance",
   color: "#3B82F6",
   icon: <TrendingUpIcon sx={{ fontSize: 26 }} />,
+  permission: "employees.performance.view",
 },
-].map((st) => (
+].filter((st) => !st.permission || can(st.permission)).map((st) => (
             <Box key={st.title}>
               <Box
                 sx={{
-                  py: 3,
-                  px: 3.5,
+                  position: "relative",
+                  overflow: "hidden",
+                  py: 2.25,
+                  px: 2.5,
+                  minHeight: 132,
                   borderRadius: "24px",
-                  borderLeft: `5px solid ${st.color}`,
-                  backgroundColor: bgBoxContainer,
-                  backdropFilter: "blur(10px)",
-                  boxShadow: "0 6px 20px rgba(0,0,0,0.06)",
-                  transition: "transform 0.25s ease",
-                  "&:hover": { transform: "translateY(-4px)" },
+                  border: `1px solid ${st.color}35`,
+                  background: darkMode
+                    ? "linear-gradient(145deg, rgba(15,23,42,.92), rgba(30,41,59,.72))"
+                    : st.color === "#2563EB"
+                    ? "linear-gradient(135deg, #F5F9FF 0%, #E6F0FF 100%)"
+                    : st.color === "#10B981"
+                    ? "linear-gradient(135deg, #F2FFFA 0%, #DDF8EE 100%)"
+                    : st.color === "#F59E0B"
+                    ? "linear-gradient(135deg, #FFFCF4 0%, #FFF0D4 100%)"
+                    : "linear-gradient(135deg, #FBF7FF 0%, #EEE5FF 100%)",
+                  backdropFilter: "blur(16px)",
+                  boxShadow: darkMode
+                    ? "0 18px 35px rgba(0,0,0,.20)"
+                    : "0 14px 30px rgba(30,64,175,.09)",
+                  transition: "transform .28s ease, box-shadow .28s ease, border-color .28s ease",
+                  "&::after": {
+                    content: '""',
+                    position: "absolute",
+                    width: 110,
+                    height: 110,
+                    right: -32,
+                    bottom: -48,
+                    borderRadius: "50%",
+                    background: `${st.color}18`,
+                    pointerEvents: "none",
+                  },
+                  "&:hover": {
+                    transform: "translateY(-5px)",
+                    borderColor: `${st.color}70`,
+                    boxShadow: darkMode
+                      ? "0 24px 45px rgba(0,0,0,.28)"
+                      : `0 20px 38px ${st.color}22`,
+                  },
                 }}
               >
                 <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
                   <Typography variant="body2" fontWeight="800" sx={{ color: textSecondary, fontSize: "13px" }}>
                     {st.title}
                   </Typography>
-                  <Box sx={{ color: st.color }}>{st.icon}</Box>
+                  <Box
+                    sx={{
+                      width: 46,
+                      height: 46,
+                      borderRadius: "16px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: st.color,
+                      backgroundColor: `${st.color}18`,
+                      boxShadow: `0 8px 18px ${st.color}18`,
+                    }}
+                  >
+                    {st.icon}
+                  </Box>
                 </Box>
                 <Typography variant="h4" fontWeight="900" sx={{ color: textPrimary, my: 1 }}>
                   {st.value}
@@ -1485,7 +1979,7 @@ const attendanceRate =
         </Box>
 
         {/* DEPARTMENT FILTER CHIPS */}
-        <Box mb={4} display="flex" gap={1.5} flexWrap="wrap">
+        <Box mb={2.75} display="flex" gap={1} flexWrap="wrap">
           {["All", "Engineering", "UI/UX Design", "Operations", "Human Resources"].map((dept) => (
             <Chip
               key={dept}
@@ -1493,17 +1987,20 @@ const attendanceRate =
               clickable
               onClick={() => setActiveFilter(dept)}
               sx={{
-                mb:3,
                 fontWeight: 800,
-                fontSize: "13px",
-                px: 2.2,
-                py: 2.3,
-                borderRadius: "16px",
-                backgroundColor: activeFilter === dept ? "#06B6D4" : darkMode ? "rgba(30,41,59,0.7)" : "rgba(224,242,254,0.8)",
+                fontSize: "12px",
+                px: 2.1,
+                py: 1.75,
+                borderRadius: "999px",
+                backgroundColor: activeFilter === dept ? "#2563EB" : darkMode ? "rgba(30,41,59,0.7)" : "rgba(224,242,254,0.8)",
                 color: activeFilter === dept ? "#FFFFFF" : textPrimary,
-                boxShadow: activeFilter === dept ? "0 6px 20px rgba(6,182,212,0.45)" : "none",
+                boxShadow: activeFilter === dept ? "0 6px 20px rgba(37,99,235,0.45)" : "none",
                 transition: "all 0.25s ease",
-                "&:hover": { backgroundColor: "#0284C7", color: "#FFFFFF", transform: "translateY(-2px)" },
+                 "&:hover": {
+                   backgroundColor: activeFilter === dept ? "#1D4ED8" : (darkMode ? "rgba(59,130,246,.16)" : "rgba(219,234,254,.85)"),
+                   color: activeFilter === dept ? "#FFFFFF" : "#2563EB",
+                   transform: "translateY(-2px)",
+                 },
               }}
             />
           ))}
@@ -1525,37 +2022,66 @@ const attendanceRate =
             </Box>
           </Box>
 
-          <TableContainer sx={{ backgroundColor: "transparent" }}>
+          <TableContainer
+            sx={{
+              borderRadius: "24px",
+              overflow: "hidden",
+              background: darkMode
+                ? "rgba(10,18,35,.72)"
+                : "rgba(248,251,255,.88)",
+              border: darkMode
+                ? "1px solid rgba(148,163,184,.12)"
+                : "1px solid rgba(148,163,184,.18)",
+              boxShadow: darkMode
+                ? "0 22px 50px rgba(0,0,0,.20)"
+                : "0 18px 42px rgba(30,64,175,.08)",
+              backdropFilter: "blur(16px)",
+            }}
+          >
             <Table size="medium">
               <TableHead>
                 <TableRow>
-                  <TableCell sx={{ color: textPrimary, fontWeight: 800, borderColor: lineDivider, fontSize: "14px" }}>ID</TableCell>
-                  <TableCell sx={{ color: textPrimary, fontWeight: 800, borderColor: lineDivider, fontSize: "14px" }}>Employee</TableCell>
-                  <TableCell sx={{ color: textPrimary, fontWeight: 800, borderColor: lineDivider, fontSize: "14px" }}>Department</TableCell>
-                  <TableCell sx={{ color: textPrimary, fontWeight: 800, borderColor: lineDivider, fontSize: "14px" }}>Attendance</TableCell>
-                  <TableCell sx={{ color: textPrimary, fontWeight: 800, borderColor: lineDivider, fontSize: "14px" }}>Status</TableCell>
-                  <TableCell align="right" sx={{ color: textPrimary, fontWeight: 800, borderColor: lineDivider, fontSize: "14px" }}>Actions</TableCell>
+                  <TableCell sx={{ color: textSecondary, fontWeight: 800, borderColor: lineDivider, fontSize: "10px", letterSpacing: ".09em", textTransform: "uppercase" }}>ID</TableCell>
+                  <TableCell sx={{ color: textSecondary, fontWeight: 800, borderColor: lineDivider, fontSize: "10px", letterSpacing: ".09em", textTransform: "uppercase" }}>Employee</TableCell>
+                  <TableCell sx={{ color: textSecondary, fontWeight: 800, borderColor: lineDivider, fontSize: "10px", letterSpacing: ".09em", textTransform: "uppercase" }}>Department</TableCell>
+                  <TableCell sx={{ color: textSecondary, fontWeight: 800, borderColor: lineDivider, fontSize: "10px", letterSpacing: ".09em", textTransform: "uppercase" }}>Joining Date</TableCell>
+                  {can("employees.attendance.view") && (
+                    <>
+                      <TableCell sx={{ color: textSecondary, fontWeight: 800, borderColor: lineDivider, fontSize: "10px", letterSpacing: ".09em", textTransform: "uppercase" }}>Work Status</TableCell>
+                      <TableCell sx={{ color: textSecondary, fontWeight: 800, borderColor: lineDivider, fontSize: "10px", letterSpacing: ".09em", textTransform: "uppercase" }}>Clock In</TableCell>
+                      <TableCell sx={{ color: textSecondary, fontWeight: 800, borderColor: lineDivider, fontSize: "10px", letterSpacing: ".09em", textTransform: "uppercase" }}>Clock Out</TableCell>
+                      <TableCell sx={{ color: textSecondary, fontWeight: 800, borderColor: lineDivider, fontSize: "10px", letterSpacing: ".09em", textTransform: "uppercase" }}>Total</TableCell>
+                    </>
+                  )}
+                  <TableCell sx={{ color: textSecondary, fontWeight: 800, borderColor: lineDivider, fontSize: "10px", letterSpacing: ".09em", textTransform: "uppercase" }}>Status</TableCell>
+                  <TableCell align="right" sx={{ color: textSecondary, fontWeight: 800, borderColor: lineDivider, fontSize: "10px", letterSpacing: ".09em", textTransform: "uppercase" }}>Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filteredEmployees.map((emp, index) => (
+                {filteredEmployees.map((emp) => (
                   <TableRow
                     key={emp.id}
                     sx={{
-                      transition: "backgroundColor 0.2s ease",
-                      "&:hover": { backgroundColor: darkMode ? "rgba(6,182,212,0.12)" : "rgba(224,242,254,0.6)" },
+                      transition: "all .2s ease",
+                      "&:hover": {
+                        backgroundColor: darkMode ? "rgba(59,130,246,.10)" : "rgba(239,246,255,.72)",
+                      },
                     }}
                   >
-                    <TableCell sx={{ color: textSecondary, fontWeight: 800, borderColor: lineDivider }}>#{index + 1}</TableCell>
+<TableCell sx={{ color: textSecondary, fontWeight: 800, borderColor: lineDivider }}>
+  #{emp.id}
+</TableCell>
+
                     <TableCell sx={{ borderColor: lineDivider }}>
                       <Box display="flex" alignItems="center" gap={1.8}>
                         <Avatar
   src={getImageUrl(emp.profile_pic)}
   alt={emp.name}
   sx={{
-    width: 42,
-    height: 42,
-    border: "2px solid #06B6D4",
+    width: 40,
+    height: 40,
+    border: "2px solid rgba(59,130,246,.28)",
+    boxShadow: "0 5px 14px rgba(37,99,235,.12)",
   }}
 >
   {emp.name?.charAt(0)}
@@ -1571,11 +2097,48 @@ const attendanceRate =
                       </Box>
                     </TableCell>
                     <TableCell sx={{ borderColor: lineDivider }}>
-                      <Typography variant="body2" fontWeight="700" sx={{ color: textPrimary }}>{emp.department}</Typography>
+                      <Typography variant="body2" fontWeight="700" sx={{ color: textPrimary }}>
+                        {emp.department || "Not Assigned"}
+                      </Typography>
                     </TableCell>
                     <TableCell sx={{ borderColor: lineDivider }}>
-                      <Typography variant="body2" fontWeight="800" sx={{ color: "#10B981" }}>{emp.attendance}</Typography>
+                      <Typography variant="body2" fontWeight="700" sx={{ color: textSecondary }}>
+                        {emp.joining_date || emp.joiningDate || emp.joined_date || emp.joinedDate || "Not Available"}
+                      </Typography>
                     </TableCell>
+                    {can("employees.attendance.view") && (
+                      <>
+                        <TableCell sx={{ borderColor: lineDivider }}>
+                          {(() => {
+                            const record = getAttendanceRecord(emp.id);
+                            const workStatus = record?.clock_out
+                              ? "Completed"
+                              : record?.clock_in
+                                ? "Working"
+                                : "Not Clocked In";
+                            const statusColor = record?.clock_out
+                              ? "#2563EB"
+                              : record?.clock_in
+                                ? "#10B981"
+                                : "#64748B";
+                            return (
+                              <Typography variant="body2" fontWeight="800" sx={{ color: statusColor }}>
+                                {attendanceLoading ? "Loading..." : workStatus}
+                              </Typography>
+                            );
+                          })()}
+                        </TableCell>
+                        <TableCell sx={{ borderColor: lineDivider, color: textPrimary, fontWeight: 700 }}>
+                          {formatClockTime(getAttendanceRecord(emp.id)?.clock_in)}
+                        </TableCell>
+                        <TableCell sx={{ borderColor: lineDivider, color: textPrimary, fontWeight: 700 }}>
+                          {formatClockTime(getAttendanceRecord(emp.id)?.clock_out)}
+                        </TableCell>
+                        <TableCell sx={{ borderColor: lineDivider, color: textPrimary, fontWeight: 700 }}>
+                          {formatWorkDuration(getAttendanceRecord(emp.id))}
+                        </TableCell>
+                      </>
+                    )}
                     <TableCell sx={{ borderColor: lineDivider }}>
                       <Chip
   label={emp.status === 1 ? "Active" : "Inactive"}
@@ -1597,16 +2160,42 @@ const attendanceRate =
 
                     </TableCell>
                     <TableCell align="right" sx={{ borderColor: lineDivider }}>
-                      <IconButton
-  size="small"
-  sx={{ color: textSecondary, mr: 1 }}
-  onClick={() => handleEditClick(emp.id)}
->
-  <EditIcon fontSize="small" />
-</IconButton>
-                      <IconButton size="small" onClick={() => handleDeleteEmployee(emp.id)} sx={{ color: "#F87171" }}>
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
+
+{/*
+  mobile_number, phone_number, contact_number.
+*/}
+
+                    <Tooltip title="View Profile">
+  <IconButton
+    size="small"
+    sx={{ color: "#2563EB", mr: 1 }}
+    onClick={() => handleViewProfile(emp)}
+  >
+    <VisibilityIcon fontSize="small" />
+  </IconButton>
+</Tooltip>
+
+{can("employees.edit") && (
+  <IconButton
+    size="small"
+    sx={{ color: textSecondary, mr: 1 }}
+    onClick={() => handleEditClick(emp.id)}
+  >
+    <EditIcon fontSize="small" />
+  </IconButton>
+)}
+
+{can("employees.delete") && (
+  <IconButton
+    size="small"
+    onClick={() => handleDeleteEmployee(emp.id)}
+    sx={{ color: "#F87171" }}
+  >
+    <DeleteIcon fontSize="small" />
+  </IconButton>
+)}
+
+
                     </TableCell>
                   </TableRow>
                 ))}
@@ -1615,13 +2204,16 @@ const attendanceRate =
           </TableContainer>
         </Box>
 
-        <Divider sx={{ my: 7, borderColor: lineDivider }} />
+        {(can("employees.view.recent.hires") || can("employees.meeting.view") || can("employees.performance.view")) && (
+          <>
+            <Divider sx={{ my: 7, borderColor: lineDivider }} />
+            <Typography variant="h5" fontWeight="900" sx={{ color: textPrimary, mb: 4, fontSize: "24px" }}>
+              Workforce Insights & Execution
+            </Typography>
+          </>
+        )}
 
-        {/* 3 DISTINCTLY STYLED BOTTOM WIDGETS WITH COMPLETELY DIFFERENT UI STRUCTURES */}
-        <Typography variant="h5" fontWeight="900" sx={{ color: textPrimary, mb: 4, fontSize: "24px" }}>
-          Workforce Insights & Execution
-        </Typography>
-
+        {(can("employees.view.recent.hires") || can("employees.meeting.view") || can("employees.performance.view")) && (
         <Box
           sx={{
             mb: 6,
@@ -1635,6 +2227,7 @@ const attendanceRate =
           }}
         >
           {/* STRUCTURE 1: RECENT HIRES FEED — AMBIENT CAPSULE HERO SHOWCASE */}
+          {can("employees.view.recent.hires") && (
           <Box sx={{ minWidth: 0 }}>
             <Box
               sx={{
@@ -1644,22 +2237,27 @@ const attendanceRate =
                 background: darkMode
                   ? "linear-gradient(145deg, rgba(15,23,42,0.85) 0%, rgba(30,41,59,0.5) 100%)"
                   : "linear-gradient(145deg, rgba(255,255,255,0.95) 0%, rgba(224,242,254,0.7) 100%)",
-                border: "2px solid rgba(6,182,212,0.3)",
-                boxShadow: "0 12px 35px rgba(6, 182, 212, 0.12)",
+                border: "2px solid rgba(37,99,235,0.3)",
+                boxShadow: "0 12px 35px rgba(37, 99, 235, 0.12)",
                 height: "100%",
                 boxSizing: "border-box",
                 transition: "all 0.3s ease",
-                "&:hover": { borderColor: "#06B6D4", boxShadow: "0 16px 40px rgba(6, 182, 212, 0.25)" },
+                "&:hover": { borderColor: "#2563EB", boxShadow: "0 16px 40px rgba(37, 99, 235, 0.25)" },
               }}
             >
               <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-                <Box display="flex" alignItems="center" gap={1.5}>
+                <Box
+                            display="flex"
+                            alignItems="center"
+                            gap={1.5}
+                            sx={{ minWidth: 190 }}
+                          >
                   <Box
                     sx={{
                       width: 50,
                       height: 40,
                       borderRadius: "14px",
-                      background: "linear-gradient(135deg, #06B6D4 0%, #0284C7 100%)",
+                      background: "linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -1672,7 +2270,7 @@ const attendanceRate =
                     Recent Hires
                   </Typography>
                 </Box>
-                <Chip label="Live Feed" size="small" sx={{mb:2, backgroundColor: "rgba(6,182,212,0.15)", color: "#06B6D4", fontWeight: 800 }} />
+                <Chip label="Live Feed" size="small" sx={{mb:2, backgroundColor: "rgba(37,99,235,0.15)", color: "#2563EB", fontWeight: 800 }} />
               </Box>
 
               <Box display="flex" flexDirection="column" gap={2}>
@@ -1688,22 +2286,22 @@ const attendanceRate =
                     key={i}
                     sx={{
                       width: 300,
-                      mt:2,
+                      mt:5,
                       p: 2,
                       borderRadius: "22px",
                       backgroundColor: darkMode ? "rgba(30,41,59,0.7)" : "rgba(240,249,255,0.9)",
-                      borderLeft: "6px solid #06B6D4",
+                      borderLeft: "6px solid #2563EB",
                       transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                       cursor: "pointer",
                       "&:hover": {
                         transform: "translateX(8px)",
-                        backgroundColor: darkMode ? "rgba(6,182,212,0.2)" : "#E0F2FE",
+                        backgroundColor: darkMode ? "rgba(37,99,235,0.2)" : "#E0F2FE",
                       },
                     }}
                   >
                     <Box display="flex" alignItems="center" justifyContent="space-between">
                       <Box display="flex" alignItems="center" gap={1.8}>
-                        <Avatar src={getImageUrl(hire.profile_pic)} alt={hire.name} sx={{ width: 44, height: 44, border: "2px solid #06B6D4" }} />
+                        <Avatar src={getImageUrl(hire.profile_pic)} alt={hire.name} sx={{ width: 44, height: 44, border: "2px solid #2563EB" }} />
                         <Box>
                           <Typography variant="subtitle2" fontWeight="800" sx={{ color: textPrimary, fontSize: "14px" }}>
                             {hire.name}
@@ -1719,8 +2317,8 @@ const attendanceRate =
   sx={{
     fontWeight: 800,
     fontSize: "11px",
-    backgroundColor: "#06B6D420",
-    color: "#06B6D4",
+    backgroundColor: "#2563EB20",
+    color: "#2563EB",
   }}
 />                    </Box>
                   </Box>
@@ -1728,8 +2326,10 @@ const attendanceRate =
               </Box>
             </Box>
           </Box>
+          )}
 
           {/* STRUCTURE 2: UPCOMING EVENTS — OPEN DASHED TIMELINE TREE (NO REPETITIVE BOX!) */}
+          {can("employees.meeting.view") && (
           <Box sx={{ minWidth: 0 }}>
             <Box
               sx={{
@@ -1737,7 +2337,7 @@ const attendanceRate =
                 p: 3.5,
                 pl: 4,
                 borderRadius: "32px",
-                borderLeft: "4px dashed #0284C7",
+                borderLeft: "4px dashed #1D4ED8",
                 height: "100%",
                 boxSizing: "border-box",
                 display: "flex",
@@ -1747,7 +2347,7 @@ const attendanceRate =
             >
               <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
                 <Box display="flex" alignItems="center" gap={1.5}>
-                  <Avatar sx={{ bgcolor: "rgba(2,132,199,0.15)", color: "#0284C7", width: 40, height: 40 }}>
+                  <Avatar sx={{ bgcolor: "rgba(2,132,199,0.15)", color: "#1D4ED8", width: 40, height: 40 }}>
                     <EventAvailableIcon sx={{ fontSize: 22 }} />
                   </Avatar>
                   <Typography variant="h6" fontWeight="900" sx={{ color: textPrimary, fontSize: "18px" }}>
@@ -1758,8 +2358,12 @@ const attendanceRate =
               </Box>
 
               <Box display="flex" flexDirection="column" gap={2.5}>
-               {meetings.map((meeting, i) => {
-  const colors = ["#0284C7", "#10B981", "#F59E0B"];
+              {[...meetingsWithValidParticipants]
+  .sort((a, b) => Number(b.id) - Number(a.id))
+  .slice(0, 2)
+  .map((meeting, i) => {
+
+  const colors = ["#1D4ED8", "#10B981", "#F59E0B"];
   const eventColor = colors[i % colors.length];
 
   return (
@@ -1843,6 +2447,154 @@ const attendanceRate =
         >
           {meeting.platform || "Google Meet"}
         </Button>
+
+
+                {/* MEETING PARTICIPANTS */}
+        <Box
+          sx={{
+            mt: 2,
+            pt: 1.5,
+            borderTop: `1px solid ${lineDivider}`,
+          }}
+        >
+          <Box
+            display="flex"
+            alignItems="center"
+            gap={1}
+            sx={{ mb: 1 }}
+          >
+            <GroupsIcon
+              sx={{
+                fontSize: 18,
+                color: eventColor,
+              }}
+            />
+
+            <Typography
+              variant="caption"
+              sx={{
+                color: textPrimary,
+                fontWeight: 800,
+                fontSize: "12px",
+              }}
+            >
+              Participants ({meeting.participants?.length || 0})
+            </Typography>
+          </Box>
+
+          {meeting.participants?.length > 0 ? (
+            <Box
+              sx={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 1,
+              }}
+            >
+              {meeting.participants.map((participant) => (
+                <Box
+                  key={participant.id || participant.email}
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 1,
+                    p: 1,
+                    borderRadius: "10px",
+                    backgroundColor: darkMode
+                      ? "rgba(30,41,59,0.6)"
+                      : "rgba(240,249,255,0.8)",
+                  }}
+                >
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 1,
+                      minWidth: 0,
+                    }}
+                  >
+                    <Avatar
+                      sx={{
+                        width: 30,
+                        height: 30,
+                        fontSize: "12px",
+                        backgroundColor: eventColor,
+                      }}
+                    >
+{participant.name?.charAt(0)?.toUpperCase()}
+
+
+                    </Avatar>
+
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography
+                        sx={{
+                          color: textPrimary,
+                          fontSize: "12px",
+                          fontWeight: 800,
+                        }}
+                      >
+                        {participant.name}
+                      </Typography>
+
+                      <Typography
+                        sx={{
+                          color: textSecondary,
+                          fontSize: "10px",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {participant.email}
+                      </Typography>
+                    </Box>
+                  </Box>
+
+                  <Chip
+                    label={
+                      participant.response_status === "accepted"
+                        ? "Accepted"
+                        : participant.response_status === "declined"
+                        ? "Declined"
+                        : "Pending"
+                    }
+                    size="small"
+                    sx={{
+                      height: 22,
+                      fontSize: "9px",
+                      fontWeight: 800,
+                      backgroundColor:
+                        participant.response_status === "accepted"
+                          ? "rgba(16,185,129,0.15)"
+                          : participant.response_status === "declined"
+                          ? "rgba(239,68,68,0.15)"
+                          : "rgba(245,158,11,0.15)",
+                      color:
+                        participant.response_status === "accepted"
+                          ? "#10B981"
+                          : participant.response_status === "declined"
+                          ? "#EF4444"
+                          : "#F59E0B",
+                    }}
+                  />
+                </Box>
+              ))}
+            </Box>
+          ) : (
+            <Typography
+              variant="caption"
+              sx={{
+                color: textSecondary,
+                fontSize: "11px",
+              }}
+            >
+              No participants selected
+            </Typography>
+          )}
+        </Box>
+
+
       </Box>
     </Box>
   );
@@ -1852,8 +2604,10 @@ const attendanceRate =
               </Box>
             </Box>
           </Box>
+          )}
 
          {/* STRUCTURE 3: SPRINT VELOCITY — BACKEND CONNECTED */}
+{can("employees.performance.view") && (
 <Box sx={{ minWidth: 0  , mt:2, }}>
   <Box
     sx={{
@@ -1862,7 +2616,7 @@ const attendanceRate =
       p: 3.5,
       borderRadius: "32px",
       background:
-        "linear-gradient(135deg, #0284C7 0%, #0369A1 60%, #075985 100%)",
+        "linear-gradient(135deg, #1D4ED8 0%, #1E40AF 60%, #075985 100%)",
       color: "#FFFFFF",
       boxShadow: "0 16px 40px rgba(2, 132, 199, 0.35)",
       height: "100%",
@@ -1950,7 +2704,7 @@ const attendanceRate =
               key={item.id}
               onClick={() => handlePerformanceClick(item)}
               sx={{
-                mt: 2,
+                mt:2,
                 p: 2,
                 cursor: "pointer",
                 borderRadius: "18px",
@@ -2115,7 +2869,9 @@ const attendanceRate =
     </Box>
   </Box>
 </Box>
+)}
         </Box>
+        )}
 
         {/* FOOTER MAIL BROADCAST BUTTON */}
         <Box
@@ -2130,6 +2886,7 @@ const attendanceRate =
             textAlign: "center",
           }}
         >
+          {can("employees.email") && (
           <Button
             variant="contained"
             size="large"
@@ -2137,7 +2894,7 @@ const attendanceRate =
             onClick={() => setMailDialogOpen(true)}
             sx={{
               borderRadius: "18px",
-              background: "linear-gradient(135deg, #06B6D4 0%, #0284C7 100%)",
+              background: "linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)",
               color: "#FFFFFF",
               textTransform: "none",
               fontWeight: 800,
@@ -2145,22 +2902,135 @@ const attendanceRate =
               px: 5,
               py: 1.8,
               mb: 2,
-              boxShadow: "0 8px 25px rgba(6, 182, 212, 0.4)",
+              boxShadow: "0 8px 25px rgba(37, 99, 235, 0.4)",
               "&:hover": {
-                background: "linear-gradient(135deg, #0284C7 0%, #0369A1 100%)",
+                background: "linear-gradient(135deg, #1D4ED8 0%, #1E40AF 100%)",
                 transform: "translateY(-2px)",
-                boxShadow: "0 12px 30px rgba(6, 182, 212, 0.5)",
+                boxShadow: "0 12px 30px rgba(37, 99, 235, 0.5)",
               },
               transition: "all 0.3s ease",
             }}
           >
             Send Mail Announcement
           </Button>
+          )}
           <Typography variant="body2" sx={{ color: textSecondary, fontWeight: 600 }}>
             © 2026 Employee Management System  •  Enterprise Workspace
           </Typography>
         </Box>
       </Box>
+
+      {/* EMPLOYEE PROFILE DIALOG + STAFF TIME MANAGEMENT */}
+      <Dialog
+        open={Boolean(profileEmployee)}
+        onClose={() => setProfileEmployee(null)}
+        fullWidth
+        maxWidth="md"
+        PaperProps={{
+          sx: {
+            borderRadius: "24px",
+            backgroundColor: darkMode ? "#0F172A" : "#FFFFFF",
+            color: textPrimary,
+            overflow: "hidden",
+          },
+        }}
+      >
+        {profileEmployee && (() => {
+          const record = getAttendanceRecord(profileEmployee.id);
+          const timeStatus = record?.clock_out
+            ? "Completed"
+            : record?.clock_in
+              ? "Working"
+              : "Not Clocked In";
+
+          return (
+            <>
+              <DialogTitle sx={{ px: 3.5, pt: 3, pb: 2, color: textPrimary }}>
+                <Box display="flex" justifyContent="space-between" alignItems="center" gap={2}>
+                  <Box display="flex" alignItems="center" gap={2}>
+                    <Avatar
+                      src={getImageUrl(profileEmployee.profile_pic)}
+                      alt={profileEmployee.name}
+                      sx={{ width: 60, height: 60, border: "2px solid rgba(59,130,246,.28)" }}
+                    >
+                      {profileEmployee.name?.charAt(0)}
+                    </Avatar>
+                    <Box>
+                      <Typography variant="h6" fontWeight={900}>{profileEmployee.name}</Typography>
+                      <Typography variant="body2" sx={{ color: textSecondary, fontWeight: 600 }}>
+                        {profileEmployee.designation || "Employee"}
+                        {profileEmployee.department ? ` • ${profileEmployee.department}` : ""}
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <IconButton onClick={() => setProfileEmployee(null)} sx={{ color: textSecondary }}>
+                    <CloseIcon />
+                  </IconButton>
+                </Box>
+              </DialogTitle>
+
+              <DialogContent sx={{ px: 3.5, pb: 3.5 }}>
+                <Divider sx={{ mb: 3, borderColor: lineDivider }} />
+
+                <Box display="flex" alignItems="center" gap={1.2} mb={1}>
+                  <AccessTimeIcon sx={{ color: "#2563EB" }} />
+                  <Typography variant="h6" fontWeight={900}>Staff's Time Management</Typography>
+                </Box>
+                <Typography variant="body2" sx={{ color: textSecondary, mb: 3 }}>
+                  Today's clock-in, clock-out and total working hours.
+                </Typography>
+
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: { xs: "1fr", sm: "repeat(4, minmax(0, 1fr))" },
+                    gap: 2,
+                    mb: 3,
+                  }}
+                >
+                  {[
+                    ["Status", timeStatus],
+                    ["Clock In", formatClockTime(record?.clock_in)],
+                    ["Clock Out", formatClockTime(record?.clock_out)],
+                    ["Total Hours", formatWorkDuration(record)],
+                  ].map(([label, value]) => (
+                    <Box
+                      key={label}
+                      sx={{
+                        p: 2,
+                        borderRadius: "16px",
+                        border: `1px solid ${lineDivider}`,
+                        backgroundColor: darkMode ? "rgba(30,41,59,.65)" : "#F8FAFC",
+                      }}
+                    >
+                      <Typography variant="caption" sx={{ color: textSecondary, fontWeight: 800, textTransform: "uppercase" }}>
+                        {label}
+                      </Typography>
+                      <Typography variant="h6" fontWeight={900} sx={{ color: textPrimary, mt: 0.5 }}>
+                        {value}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Box>
+
+                <Box
+                  sx={{
+                    mt: 1,
+                    p: 2,
+                    borderRadius: "14px",
+                    backgroundColor: darkMode ? "rgba(30,41,59,.55)" : "#F8FAFC",
+                    border: `1px solid ${lineDivider}`,
+                  }}
+                >
+                  <Typography variant="body2" sx={{ color: textSecondary, fontWeight: 700 }}>
+                    Attendance actions are performed by the employee from their own Profile page.
+                  </Typography>
+                </Box>
+              </DialogContent>
+            </>
+          );
+        })()}
+      </Dialog>
 
       {/* ADD NEW EMPLOYEE DIALOG MODAL */}
       <Dialog
@@ -2203,7 +3073,7 @@ const attendanceRate =
                     color: textPrimary,
                     height: "52px",
                     "& fieldset": { borderColor: lineDivider },
-                    "&:hover fieldset": { borderColor: "#06B6D4" },
+                    "&:hover fieldset": { borderColor: "#2563EB" },
                   },
                 }}
               />
@@ -2212,7 +3082,7 @@ const attendanceRate =
             {/* FIELD 2: DEPARTMENT */}
             <Box>
               <Typography variant="subtitle2" fontWeight="800" sx={{ mt: 2, mb: 1, color: textPrimary, fontSize: "13px", letterSpacing: "0.5px" }}>
-                DEPARTMENT *
+                DEPARTMENT
               </Typography>
               <FormControl fullWidth>
                 <Select
@@ -2224,19 +3094,55 @@ const attendanceRate =
                     color: textPrimary,
                     height: "52px",
                     "& fieldset": { borderColor: lineDivider },
-                    "&:hover fieldset": { borderColor: "#06B6D4" },
+                    "&:hover fieldset": { borderColor: "#2563EB" },
                   }}
                 >
+                  <MenuItem value="">-- Select Department --</MenuItem>
                   <MenuItem value="Engineering">Engineering</MenuItem>
-                  <MenuItem value="UI/UX Design">UI/UX Design</MenuItem>
-                  <MenuItem value="Operations">Operations</MenuItem>
-                  <MenuItem value="Human Resources">Human Resources</MenuItem>
+<MenuItem value="UI/UX Design">UI/UX Design</MenuItem>
+<MenuItem value="Operations">Operations</MenuItem>
+<MenuItem value="Human Resources">Human Resources</MenuItem>
+<MenuItem value="Web Development">Web Development</MenuItem>
                 </Select>
               </FormControl>
             </Box>
 
             
-            {/* FIELD 3: DESIGNATION */}
+            {/* FIELD 3: JOINING DATE */}
+            <Box>
+              <Typography
+                variant="subtitle2"
+                fontWeight="800"
+                sx={{
+                  mt: 2,
+                  mb: 1,
+                  color: textPrimary,
+                  fontSize: "13px",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                JOINING DATE
+              </Typography>
+              <TextField
+                fullWidth
+                type="date"
+                value={newEmpJoiningDate}
+                onChange={(e) => setNewEmpJoiningDate(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    borderRadius: "16px",
+                    backgroundColor: darkMode ? "#1E293B" : "#F0F9FF",
+                    color: textPrimary,
+                    height: "52px",
+                    "& fieldset": { borderColor: lineDivider },
+                    "&:hover fieldset": { borderColor: "#2563EB" },
+                  },
+                }}
+              />
+            </Box>
+
+            {/* FIELD 4: DESIGNATION */}
 <Box>
   <Typography
     variant="subtitle2"
@@ -2310,7 +3216,7 @@ const attendanceRate =
   onClick={editMode ? handleUpdateEmployee : handleAddEmployee}
   sx={{
     borderRadius: "14px",
-    background: "#06B6D4",
+    background: "#2563EB",
     textTransform: "none",
     fontWeight: 800,
     px: 3.5,
@@ -2323,6 +3229,7 @@ const attendanceRate =
       </Dialog>
 
     
+      {can("employees.meeting.create") && (
       <Dialog
   open={meetingDialogOpen}
   onClose={() => {
@@ -2433,7 +3340,12 @@ const attendanceRate =
                 display: "flex",
                 alignItems: "center",
                 p: 1,
-                borderRadius: "8px",
+                borderRadius: "14px",
+                 transition: "background .2s ease, transform .2s ease",
+                 "&:hover": {
+                   backgroundColor: darkMode ? "rgba(59,130,246,.10)" : "#EFF6FF",
+                   transform: "translateX(3px)",
+                 },
               }}
             >
               <Checkbox
@@ -2481,13 +3393,29 @@ const attendanceRate =
     <Typography
       sx={{
         mt: 1,
-        color: "#0284C7",
+        color: "#1D4ED8",
         fontWeight: 700,
         fontSize: "13px",
       }}
     >
       {selectedMeetingEmployeeIds.length} employee(s) selected
     </Typography>
+
+    <Box sx={{ mt: 2, p: 1.5, borderRadius: "12px", backgroundColor: "rgba(22,163,74,0.08)", border: "1px solid rgba(22,163,74,0.18)" }}>
+      <Typography sx={{ fontSize: "12px", color: "#166534", fontWeight: 700 }}>
+        First-time setup: connect the Google account that will create the calendar meetings.
+      </Typography>
+      <Button
+        size="small"
+        startIcon={<VideoCallIcon />}
+        onClick={() => {
+          window.location.href = "https://website-vltl.onrender.com/meetings/google/auth";
+        }}
+        sx={{ mt: 1, textTransform: "none", fontWeight: 800, color: "#15803D" }}
+      >
+        Connect Google Calendar
+      </Button>
+    </Box>
 
   </DialogContent>
 
@@ -2506,7 +3434,7 @@ const attendanceRate =
       sx={{
         borderRadius: "14px",
         background:
-          "linear-gradient(135deg, #06B6D4 0%, #0284C7 100%)",
+          "linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)",
         fontWeight: 800,
         textTransform: "none",
       }}
@@ -2517,9 +3445,11 @@ const attendanceRate =
     </Button>
   </DialogActions>
 </Dialog>
+      )}
 
 
       {/* SEND MAIL ANNOUNCEMENT DIALOG */}
+{can("employees.email") && (
 <Dialog
   open={mailDialogOpen}
   onClose={() => {
@@ -2635,13 +3565,13 @@ const attendanceRate =
 
                 backgroundColor: isSelected
                   ? darkMode
-                    ? "rgba(6,182,212,0.15)"
-                    : "rgba(6,182,212,0.10)"
+                    ? "rgba(37,99,235,0.15)"
+                    : "rgba(37,99,235,0.10)"
                   : "transparent",
 
                 "&:hover": {
                   backgroundColor: darkMode
-                    ? "rgba(6,182,212,0.12)"
+                    ? "rgba(37,99,235,0.12)"
                     : "rgba(224,242,254,0.8)",
                 },
               }}
@@ -2676,10 +3606,10 @@ const attendanceRate =
 
                 }}
                 sx={{
-                  color: "#06B6D4",
+                  color: "#2563EB",
 
                   "&.Mui-checked": {
-                    color: "#0284C7",
+                    color: "#1D4ED8",
                   },
                 }}
               />
@@ -2695,7 +3625,7 @@ const attendanceRate =
                   width: 38,
                   height: 38,
                   border:
-                    "2px solid #06B6D4",
+                    "2px solid #2563EB",
                 }}
               >
                 {employee.name
@@ -2743,7 +3673,7 @@ const attendanceRate =
       sx={{
         fontSize: "13px",
         fontWeight: 800,
-        color: "#0284C7",
+        color: "#1D4ED8",
         mb: 2.5,
       }}
     >
@@ -2828,7 +3758,7 @@ const attendanceRate =
       Cancel
     </Button>
 
-
+{can("employees.email") && (
     <Button
       variant="contained"
       startIcon={<EmailIcon />}
@@ -2840,7 +3770,7 @@ const attendanceRate =
       sx={{
         borderRadius: "14px",
         background:
-          "linear-gradient(135deg, #06B6D4 0%, #0284C7 100%)",
+          "linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)",
         textTransform: "none",
         fontWeight: 800,
         px: 3,
@@ -2855,10 +3785,12 @@ const attendanceRate =
         ? "Sending..."
         : "Send Announcement"}
     </Button>
-
+)}
   </DialogActions>
 
 </Dialog>
+)}
+
 
       {/* SNACKBAR NOTIFICATION TOAST */}
       <Snackbar

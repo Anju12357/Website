@@ -1,4 +1,8 @@
-import { useState, useEffect } from "react";
+import {
+  useState,
+  useEffect,
+  useRef,
+} from "react";
 import { useNavigate } from "react-router-dom";
 
 // Material UI Core Imports
@@ -47,7 +51,7 @@ import GroupIcon from "@mui/icons-material/Group";
 import SpeedIcon from "@mui/icons-material/Speed";
 import FormatQuoteIcon from "@mui/icons-material/FormatQuote";
 import ShieldIcon from "@mui/icons-material/Shield";
-
+import { normalisePermissions, isAdminUser } from "../permissions";
 
 import axios from "axios";
 
@@ -93,6 +97,7 @@ const TESTIMONIALS = [
 
 function Login({ darkMode: propDarkMode, toggleDarkMode: propToggleDarkMode }) {
   const navigate = useNavigate();
+  const loginInProgress = useRef(false);
 
   // Self-contained Dark/Light Theme state
   const [internalDarkMode, setInternalDarkMode] = useState(true);
@@ -138,47 +143,247 @@ const [password, setPassword] = useState("");
   const [reqDepartment, setReqDepartment] = useState("Engineering");
   const [reqTeamSize, setReqTeamSize] = useState("50-200 employees");
 
+
+
+
+  const getFirstAllowedRoute = (user) => {
+  if (!user) {
+    return "/";
+  }
+
+  // Admin can access everything.
+  if (isAdminUser(user)) {
+    return "/dashboard";
+  }
+
+  const permissions = normalisePermissions(
+    user.permissions
+  );
+
+  if (permissions.includes("dashboard.view")) {
+    return "/dashboard";
+  }
+
+  if (permissions.includes("employees.view")) {
+    return "/employees";
+  }
+
+  if (permissions.includes("profile.view")) {
+    return "/profile";
+  }
+
+  if (permissions.includes("edit_profile.view")) {
+    return "/edit-profile";
+  }
+
+  if (permissions.includes("change_password.view")) {
+    return "/change-password";
+  }
+
+  // No employee permission
+  return "/permission-denied";
+};
+
+
   // Direct Sign In handler
+
+
+  // ============================================================
+// LOGIN
+// ============================================================
+
 const handleLogin = async (e) => {
   e.preventDefault();
 
-  setErrorMessage("");
-
-  if (!email.trim() || !password.trim()) {
-    setErrorMessage("Please enter both email address and password.");
+  // Prevent multiple clicks / duplicate requests
+  if (loginInProgress.current) {
     return;
   }
+
+  setErrorMessage("");
+
+  // ----------------------------------------------------------
+  // Validate fields
+  // ----------------------------------------------------------
+
+  if (
+    !email.trim() ||
+    !password.trim()
+  ) {
+    setErrorMessage(
+      "Please enter both email address and password."
+    );
+
+    return;
+  }
+
+  // Lock login button
+  loginInProgress.current = true;
 
   try {
     setLoading(true);
 
-    const response = await axios.post(
-      "http://localhost:4000/login",
+    console.log(
+      "LOGIN STARTED"
+    );
+
+    // --------------------------------------------------------
+    // STEP 1: Login
+    // --------------------------------------------------------
+
+    const response =
+      await axios.post(
+        "https://website-vltl.onrender.com/login",
+        {
+          email:
+            email.trim(),
+
+          password:
+            password.trim(),
+        },
+        {
+          withCredentials: true,
+        }
+      );
+
+    console.log(
+      "LOGIN RESPONSE:",
+      response.data
+    );
+
+    if (
+      response.data?.status !== 1
+    ) {
+      throw new Error(
+        response.data?.error ||
+        "Login failed"
+      );
+    }
+
+    const loggedInUser =
+      response.data?.user;
+
+    console.log(
+      "LOGIN USER:",
+      loggedInUser
+    );
+
+    console.log(
+      "LOGIN PERMISSIONS:",
+      loggedInUser?.permissions
+    );
+
+    // --------------------------------------------------------
+    // STEP 2: Confirm session with /auth/me
+    // --------------------------------------------------------
+    // IMPORTANT:
+    // Do not navigate immediately after /login.
+    // First confirm that the cookie/session works and
+    // get the current role permissions from the backend.
+    // --------------------------------------------------------
+
+    console.log(
+      "AUTH ME REQUEST AFTER LOGIN"
+    );
+
+    const authResponse =
+      await axios.get(
+        "https://website-vltl.onrender.com/auth/me",
+        {
+          withCredentials: true,
+        }
+      );
+
+    console.log(
+      "AUTH ME RESPONSE AFTER LOGIN:",
+      authResponse.data
+    );
+
+    const authenticatedUser =
+      authResponse.data?.user ||
+      authResponse.data?.data ||
+      null;
+
+    if (!authenticatedUser) {
+      throw new Error(
+        "Unable to load authenticated user."
+      );
+    }
+
+    console.log(
+      "AUTHENTICATED USER:",
+      authenticatedUser
+    );
+
+    console.log(
+      "AUTHENTICATED PERMISSIONS:",
+      authenticatedUser.permissions
+    );
+
+    // --------------------------------------------------------
+    // STEP 3: Determine first allowed route
+    // --------------------------------------------------------
+
+    const firstAllowedRoute =
+      getFirstAllowedRoute(
+        authenticatedUser
+      );
+
+    console.log(
+      "FIRST ALLOWED ROUTE:",
+      firstAllowedRoute
+    );
+
+    // --------------------------------------------------------
+    // STEP 4: Show success message
+    // --------------------------------------------------------
+
+    setToastMessage(
+      response.data.message ||
+      "Login successful"
+    );
+
+    // --------------------------------------------------------
+    // STEP 5: Navigate only after auth/me succeeded
+    // --------------------------------------------------------
+
+    navigate(
+      firstAllowedRoute,
       {
-        email,
-        password,
-      },
-      {
-        withCredentials: true,
+        replace: true,
       }
     );
 
-    setLoading(false);
-
-    setToastMessage(response.data.message);
-
-    navigate("/dashboard");
-
   } catch (error) {
-    setLoading(false);
+    console.error(
+      "LOGIN ERROR:",
+      error?.response?.data ||
+      error?.message ||
+      error
+    );
 
-    if (error.response) {
+    // --------------------------------------------------------
+    // Login error from backend
+    // --------------------------------------------------------
+
+    if (error?.response) {
       setErrorMessage(
-        error.response.data.error || "Login Failed"
+        error.response.data?.error ||
+        error.response.data?.message ||
+        "Login failed"
       );
     } else {
-      setErrorMessage("Cannot connect to backend.");
+      setErrorMessage(
+        error?.message ||
+        "Cannot connect to backend."
+      );
     }
+
+  } finally {
+    // Unlock button
+    loginInProgress.current = false;
+
+    setLoading(false);
   }
 };
 

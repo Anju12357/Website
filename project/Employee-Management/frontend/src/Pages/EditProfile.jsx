@@ -53,6 +53,7 @@ import CameraAltIcon from "@mui/icons-material/CameraAlt";
 import SecurityIcon from "@mui/icons-material/Security";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import AddIcon from "@mui/icons-material/Add";
+import { hasPermission } from "../permissions";
 
 import ShieldIcon from "@mui/icons-material/Shield";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
@@ -61,6 +62,7 @@ import StarIcon from "@mui/icons-material/Star";
 function EditProfile() {
   const navigate = useNavigate();
 const profileFileInputRef = useRef(null);
+const [currentUser, setCurrentUser] = useState(null);
   // THEME STATE (DARK & LIGHT MODE) MATCHING DASHBOARD
   // ======================================================
 // DARK MODE
@@ -68,7 +70,7 @@ const profileFileInputRef = useRef(null);
 
 const [darkMode, setDarkMode] = useState(() => {
   const savedTheme =
-    localStorage.getItem("darkMode");
+    localStorage.getItem("ems-dark-mode");
 
   return savedTheme === "true";
 });
@@ -78,7 +80,7 @@ const toggleTheme = () => {
     const newValue = !prev;
 
     localStorage.setItem(
-      "darkMode",
+      "ems-dark-mode",
       String(newValue)
     );
 
@@ -96,7 +98,9 @@ const toggleTheme = () => {
   const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
 // NOTIFICATION STATE
 const [notifications, setNotifications] = useState([]);
-const [, setNotificationLoading] = useState(false);
+const [notificationLoading, setNotificationLoading] = useState(false);
+
+const can = (permission) => hasPermission(currentUser, permission);
 
 const [searchResults, setSearchResults] = useState([]);
 const [searchLoading, setSearchLoading] = useState(false);
@@ -142,13 +146,15 @@ const [skillsList, setSkillsList] = useState([]);
   const fetchUser = async () => {
   try {
     const response = await axios.get(
-      "http://localhost:4000/auth/me",
+      "https://website-vltl.onrender.com/auth/me",
       {
         withCredentials: true,
       }
     );
 
     const user = response.data.user;
+
+   setCurrentUser(user);
 
    setFormData((prev) => ({
   ...prev,
@@ -186,6 +192,11 @@ const [skillsList, setSkillsList] = useState([]);
 // ======================================================
 
 const handleProfilePhotoUpload = async (event) => {
+  if (!can("edit_profile.photo")) {
+    setSnackbar({ open: true, message: "You do not have permission to change your profile photo", severity: "error" });
+    return;
+  }
+
   const file = event.target.files?.[0];
 
   if (!file) return;
@@ -227,7 +238,7 @@ const handleProfilePhotoUpload = async (event) => {
     uploadData.append("file", file);
 
     const response = await axios.post(
-      "http://localhost:4000/webservices/users/upload-image",
+      "https://website-vltl.onrender.com/webservices/users/upload-image",
       uploadData,
       {
         withCredentials: true,
@@ -288,7 +299,7 @@ const handleUserSearch = async (value) => {
     setSearchLoading(true);
 
     const response = await axios.post(
-      "http://localhost:4000/webservices/users/search-users",
+      "https://website-vltl.onrender.com/webservices/users/search-users",
       {
         search: value.trim(),
       },
@@ -327,7 +338,7 @@ const getImageUrl = (imagePath) => {
     return imagePath;
   }
 
-  return `http://localhost:4000${
+  return `https://website-vltl.onrender.com${
     imagePath.startsWith("/") ? "" : "/"
   }${imagePath}`;
 };
@@ -341,7 +352,7 @@ const fetchNotifications = async () => {
     setNotificationLoading(true);
 
     const response = await axios.get(
-      "http://localhost:4000/notifications",
+      "https://website-vltl.onrender.com/notifications",
       {
         withCredentials: true,
       }
@@ -367,7 +378,7 @@ const fetchNotifications = async () => {
 const fetchSkills = async (userId) => {
   try {
     const response = await axios.post(
-      "http://localhost:4000/webservices/users/get-skills",
+      "https://website-vltl.onrender.com/webservices/users/get-skills",
       {
         user_id: userId,
       },
@@ -418,7 +429,7 @@ const handleNotificationClick = async (notification) => {
     }
 
     const response = await axios.post(
-      "http://localhost:4000/notifications/read",
+      "https://website-vltl.onrender.com/notifications/read",
       {
         id: notification.id,
       },
@@ -450,6 +461,15 @@ const handleNotificationClick = async (notification) => {
 
 
 const handleAddSkill = async () => {
+  if (!can("edit_profile.skills.add")) {
+    setSnackbar({
+      open: true,
+      message: "You do not have permission to edit your profile",
+      severity: "error",
+    });
+    return;
+  }
+
   const skill = newSkillInput.trim();
 
   if (!skill) return;
@@ -470,7 +490,7 @@ const handleAddSkill = async () => {
 
   try {
     const response = await axios.post(
-      "http://localhost:4000/webservices/users/add-skill",
+      "https://website-vltl.onrender.com/webservices/users/add-skill",
       {
         user_id: formData.id,
         skill,
@@ -515,9 +535,18 @@ const handleAddSkill = async () => {
  
 
 const handleDeleteSkill = async (skillToDelete) => {
+  if (!can("edit_profile.skills.remove")) {
+    setSnackbar({
+      open: true,
+      message: "You do not have permission to edit your profile",
+      severity: "error",
+    });
+    return;
+  }
+
   try {
     const response = await axios.post(
-      "http://localhost:4000/webservices/users/delete-skill",
+      "https://website-vltl.onrender.com/webservices/users/delete-skill",
       {
         id: skillToDelete.id,
         user_id: formData.id,
@@ -551,9 +580,18 @@ const handleDeleteSkill = async (skillToDelete) => {
 
 
 const handleSave = async () => {
+  if (!can("edit_profile.save")) {
+    setSnackbar({
+      open: true,
+      message: "You do not have permission to edit your profile",
+      severity: "error",
+    });
+    return;
+  }
+
   try {
     const response = await axios.post(
-  "http://localhost:4000/webservices/users/update-user",
+  "https://website-vltl.onrender.com/webservices/users/update-user",
   {
     id: formData.id,
 
@@ -623,28 +661,124 @@ const handleSave = async () => {
   }
 };
      
-  // EXACT MATCHING DASHBOARD COLOR THEME TOKENS
+  // EXACT EMPLOYEE PAGE THEME TOKENS
   const bgPageGradient = darkMode
-    ? "linear-gradient(135deg, #090D16 0%, #0F172A 50%, #080C14 100%)"
-    : "linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 50%, #DBEAFE 100%)";
+    ? "radial-gradient(circle at 12% 0%, rgba(37,99,235,.16), transparent 30%), linear-gradient(135deg, #070B14 0%, #0F172A 52%, #111827 100%)"
+    : "radial-gradient(circle at 85% 0%, rgba(96,165,250,.18), transparent 26%), linear-gradient(135deg, #DCEBFA 0%, #EAF2FA 45%, #E4ECF8 100%)";
 
   const bgSidebarGradient = darkMode
-    ? "linear-gradient(180deg, #0F172A 0%, #1E293B 60%, #090D16 100%)"
-    : "linear-gradient(180deg, #0284C7 0%, #0369A1 60%, #075985 100%)";
+    ? "linear-gradient(180deg, #0B1220 0%, #111C33 55%, #070B14 100%)"
+    : "linear-gradient(180deg, #111D3A 0%, #172554 58%, #0F172A 100%)";
 
-  const bgCard = darkMode ? "rgba(15, 23, 42, 0.75)" : "rgba(255, 255, 255, 0.85)";
-  const bgInnerCard = darkMode ? "rgba(30, 41, 59, 0.6)" : "rgba(224, 242, 254, 0.7)";
-  const textPrimary = darkMode ? "#F8FAFC" : "#0F172A";
-  const textSecondary = darkMode ? "#94A3B8" : "#0284C7";
-  const borderCol = darkMode ? "rgba(255, 255, 255, 0.08)" : "rgba(2, 132, 199, 0.18)";
+  const bgCard = darkMode
+    ? "rgba(15, 23, 42, 0.78)"
+    : "rgba(255, 255, 255, 0.75)";
+  const bgInnerCard = darkMode
+    ? "rgba(30, 41, 59, 0.65)"
+    : "rgba(224, 242, 254, 0.70)";
+  const textPrimary = darkMode ? "#F8FAFC" : "#172033";
+  const textSecondary = darkMode ? "#A8B4C7" : "#64748B";
+  const borderCol = darkMode
+    ? "rgba(148,163,184,0.12)"
+    : "rgba(15,23,42,0.08)";
+
+  // Direct-route protection: manually opening /edit-profile
+  // is denied unless the Admin granted edit_profile.view.
+  if (currentUser && !can("profile.edit")) {
+    return (
+      <Box
+        sx={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: bgPageGradient,
+          p: 3,
+        }}
+      >
+        <Paper
+          elevation={0}
+          sx={{
+            width: "100%",
+            maxWidth: 520,
+            p: 4,
+            textAlign: "center",
+            borderRadius: "24px",
+            backgroundColor: bgCard,
+            backdropFilter: "blur(14px)",
+            border: `1px solid ${borderCol}`,
+            boxShadow: "0 12px 40px rgba(0,0,0,.08)",
+          }}
+        >
+          <Typography
+            variant="h5"
+            fontWeight={900}
+            sx={{ color: textPrimary, mb: 1 }}
+          >
+            Access Denied
+          </Typography>
+
+          <Typography sx={{ color: textSecondary, mb: 3 }}>
+            Your administrator has not granted permission to edit your profile.
+          </Typography>
+
+          <Button
+            variant="contained"
+            onClick={() => navigate("/dashboard")}
+            sx={{
+              borderRadius: "14px",
+              textTransform: "none",
+              fontWeight: 800,
+              background:
+                "linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)",
+            }}
+          >
+            Go to Dashboard
+          </Button>
+        </Paper>
+      </Box>
+    );
+  }
 
   const sidebarItems = [
-    { text: "Dashboard", icon: <DashboardIcon />, path: "/dashboard" },
-    { text: "Employees", icon: <PeopleIcon />, path: "/employees" },
-    { text: "Profile", icon: <PersonIcon />, path: "/profile" },
-    { text: "Edit Profile", icon: <EditIcon />, path: "/edit-profile" },
-    { text: "Change Password", icon: <LockIcon />, path: "/change-password" },
-  ];
+    {
+      text: "Dashboard",
+      icon: <DashboardIcon />,
+      path: "/dashboard",
+      permission: "dashboard.view",
+    },
+    {
+      text: "Employees",
+      icon: <PeopleIcon />,
+      path: "/employees",
+      permission: "employees.view",
+    },
+    {
+      text: "Profile",
+      icon: <PersonIcon />,
+      path: "/profile",
+      permission: "profile.view",
+    },
+    {
+      text: "Edit Profile",
+      icon: <EditIcon />,
+      path: "/edit-profile",
+      permission: "profile.edit",
+    },
+    {
+      text: "Change Password",
+      icon: <LockIcon />,
+      path: "/change-password",
+      permission: "password.view",
+
+    },
+         {
+              text: "User Roles",
+              icon: <PeopleIcon />,
+              path: "/user-roles",
+              permission: "permissions.manage",
+            },
+  ].filter((item) => can(item.permission));
 
   return (
     <Box
@@ -683,13 +817,13 @@ const handleSave = async () => {
                 width: 42,
                 height: 42,
                 borderRadius: "14px",
-                background: "linear-gradient(135deg, #06B6D4 0%, #0284C7 100%)",
+                background: "linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 color: "#FFFFFF",
                 fontWeight: 800,
-                boxShadow: "0 8px 24px rgba(6, 182, 212, 0.45)",
+                boxShadow: "0 8px 24px rgba(37, 99, 235, 0.45)",
               }}
             >
               E
@@ -707,11 +841,11 @@ const handleSave = async () => {
                   key={item.text}
                   fullWidth
                   startIcon={React.cloneElement(item.icon, {
-                    style: { color: isActive ? "#FFFFFF" : "#BAE6FD", fontSize: "20px" },
+                    style: { color: isActive ? "#FFFFFF" : "#CBD5E1", fontSize: "20px" },
                   })}
                   onClick={() => {
                     setActiveTab(item.text);
-                    if (item.path !== "/edit-profile") navigate(item.path);
+                    navigate(item.path);
                   }}
                   sx={{
                     justifyContent: "flex-start",
@@ -721,12 +855,12 @@ const handleSave = async () => {
                     textTransform: "none",
                     fontWeight: isActive ? 700 : 600,
                     fontSize: "14px",
-                    color: isActive ? "#FFFFFF" : "#BAE6FD",
-                    backgroundColor: isActive ? "#0284C7" : "transparent",
+                    color: isActive ? "#FFFFFF" : "#CBD5E1",
+                    backgroundColor: isActive ? "#1D4ED8" : "transparent",
                     boxShadow: isActive ? "0 6px 18px rgba(2, 132, 199, 0.45)" : "none",
                     transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
                     "&:hover": {
-                      backgroundColor: isActive ? "#0369A1" : "rgba(255, 255, 255, 0.12)",
+                      backgroundColor: isActive ? "#1E40AF" : "rgba(255, 255, 255, 0.12)",
                       transform: "translateX(4px)",
                       color: "#FFFFFF",
                     },
@@ -766,10 +900,14 @@ const handleSave = async () => {
       <Box
         sx={{
           flex: 1,
-          ml: "250px",
-          p: { xs: 3, md: 5 },
+          ml: { xs: "0px", md: "250px" },
+          p: { xs: 2, sm: 2.5, md: 3 },
+          position: "relative",
+          zIndex: 1,
           boxSizing: "border-box",
-          maxWidth: "calc(100vw - 250px)",
+          width: { xs: "100%", md: "calc(100% - 250px)" },
+          maxWidth: { xs: "100%", md: "calc(100vw - 250px)" },
+          minWidth: 0,
         }}
       >
         {/* TOP BAR */}
@@ -779,7 +917,8 @@ const handleSave = async () => {
             alignItems: "center",
             justifyContent: "space-between",
             width: "100%",
-            mb: 5,
+            mb: 3.5,
+            gap: 2,
           }}
         >
           <TextField
@@ -790,19 +929,19 @@ const handleSave = async () => {
   handleUserSearch(e.target.value)
 }
             sx={{
-              width: { xs: 240, sm: 380, md: 480 },
+              width: { xs: 240, sm: 360, md: 420 },
               "& .MuiOutlinedInput-root": {
                 height: 48,
                 borderRadius: "24px",
-                backgroundColor: darkMode ? "rgba(15, 23, 42, 0.6)" : "rgba(255, 255, 255, 0.8)",
+                backgroundColor: darkMode ? "rgba(15,23,42,.72)" : "rgba(255,255,255,.82)",
                 backdropFilter: "blur(12px)",
                 color: textPrimary,
                 fontSize: "14px",
                 boxShadow: "0 4px 20px rgba(6, 182, 212, 0.08)",
                 transition: "all 0.3s ease",
                 "& fieldset": { borderColor: borderCol },
-                "&:hover fieldset": { borderColor: "#06B6D4" },
-                "&.Mui-focused fieldset": { borderColor: "#06B6D4", boxShadow: "0 0 16px rgba(6, 182, 212, 0.35)" },
+                "&:hover fieldset": { borderColor: "#2563EB" },
+                "&.Mui-focused fieldset": { borderColor: "#2563EB", boxShadow: "0 0 16px rgba(37, 99, 235, 0.35)" },
               },
             }}
             slotProps={{
@@ -818,288 +957,269 @@ const handleSave = async () => {
 
                  
          
-                    
-         {/* TOP RIGHT ACTIONS (DARK THEME TOGGLE, NOTIFICATIONS & AVATAR ALIGNED ON SAME HORIZONTAL LINE) */}
-                   <Box display="flex" alignItems="center" gap={2} >
-                     {/* 1. DARK / LIGHT THEME TOGGLE BUTTON */}
-         <Tooltip title={darkMode ? "Light Mode" : "Dark Mode"}>
-           <IconButton
-              onClick={toggleTheme}
-                         sx={{ml:-12,
-                           backgroundColor: darkMode ? "rgba(153, 192, 255, 0.8)" : "rgba(224, 242, 254, 0.8)",
-                           p: 1.2,
-                           borderRadius: "16px",
-                           color: textPrimary,
-                           transition: "transform 0.2s ease",
-                           "&:hover": { transform: "rotate(15deg)" },
+      {/* TOP RIGHT ACTIONS: DARK MODE + NOTIFICATIONS + AVATAR */}
+             <Box
+               sx={{
+                 display: "flex",
+                 alignItems: "center",
+                 justifyContent: "flex-end",
+                 gap: 1.25,
+                 flexShrink: 0,
+                 marginLeft: "auto",
+               }}
+             >
+               {/* DARK / LIGHT MODE */}
+               <Tooltip
+                 title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+               >
+                 <IconButton
+                   onClick={toggleTheme}
+                   sx={{
+                     width: 44,
+                     height: 44,
+                     p: 0,
+                     borderRadius: "14px",
+                     backgroundColor: darkMode
+                       ? "rgba(30, 41, 59, 0.9)"
+                       : "rgba(224, 242, 254, 0.9)",
+                     color: textPrimary,
+                     transition: "all 0.2s ease",
+                     "&:hover": {
+                       backgroundColor: darkMode
+                         ? "rgba(51, 65, 85, 1)"
+                         : "rgba(186, 230, 253, 1)",
+                       transform: "scale(1.05)",
+                     },
+                   }}
+                 >
+                   {darkMode ? (
+                     <LightModeIcon sx={{ fontSize: 21, color: textPrimary }} />
+                   ) : (
+                     <DarkModeIcon sx={{ fontSize: 21, color: textPrimary }} />
+                   )}
+                 </IconButton>
+               </Tooltip>
+   
+               {/* NOTIFICATIONS */}
+               {can("notifications.view") && (
+                 <>
+                   <Tooltip title="Notifications">
+                     <IconButton
+                       onClick={(e) => {
+                         setNotifAnchorEl(e.currentTarget);
+                         fetchNotifications();
+                       }}
+                       sx={{
+                         width: 44,
+                         height: 44,
+                         p: 0,
+                         borderRadius: "14px",
+                         backgroundColor: darkMode
+                           ? "rgba(30, 41, 59, 0.9)"
+                           : "rgba(224, 242, 254, 0.9)",
+                         color: textPrimary,
+                         transition: "all 0.2s ease",
+                         "&:hover": {
+                           backgroundColor: darkMode
+                             ? "rgba(51, 65, 85, 1)"
+                             : "rgba(186, 230, 253, 1)",
+                           transform: "scale(1.05)",
+                         },
+                       }}
+                     >
+                       <Badge
+badgeContent={unreadNotificationCount}
+                         color="error"
+invisible={unreadNotificationCount === 0}
+                         sx={{
+                           "& .MuiBadge-badge": {
+                             minWidth: 18,
+                             height: 18,
+                             fontSize: 10,
+                             fontWeight: 800,
+                             top: 1,
+                             right: 1,
+                           },
                          }}
                        >
-             
-             {darkMode ? <LightModeIcon /> : <DarkModeIcon />}
-           </IconButton>
-         </Tooltip>
+                         <NotificationsNoneIcon
+                           sx={{ color: textPrimary, fontSize: 21 }}
+                         />
+                       </Badge>
+                     </IconButton>
+                   </Tooltip>
+   
+                   {/* NOTIFICATION MENU */}
+                   <Menu
+                     anchorEl={notifAnchorEl}
+                     open={Boolean(notifAnchorEl)}
+                     onClose={() => setNotifAnchorEl(null)}
+                     anchorOrigin={{
+                       vertical: "bottom",
+                       horizontal: "right",
+                     }}
+                     transformOrigin={{
+                       vertical: "top",
+                       horizontal: "right",
+                     }}
+                     PaperProps={{
+                       sx: {
+                         mt: 1,
+                         borderRadius: "20px",
+                         width: 360,
+                         maxWidth: "calc(100vw - 24px)",
+                         maxHeight: 520,
+                         p: 1,
+                         backgroundColor: darkMode
+                           ? "#0F172A !important"
+                           : "#FFFFFF !important",
+                         color: textPrimary,
+                         boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
+                       },
+                     }}
+                   >
+                     <Typography
+                       variant="subtitle2"
+                       fontWeight="800"
+                       sx={{ p: 1.5, fontSize: "16px" }}
+                     >
+                       Notifications & Alerts
+                     </Typography>
+   
+                     <Divider sx={{ my: 1, borderColor: borderCol}} />
+   
+                     {notificationLoading ? (
+                       <MenuItem disabled>
+                         <Typography variant="body2">
+                           Loading notifications...
+                         </Typography>
+                       </MenuItem>
+                     ) : notifications.length === 0 ? (
+                       <MenuItem disabled>
+                         <Typography variant="body2">
+                           No notifications
+                         </Typography>
+                       </MenuItem>
+                     ) : (
+                       notifications.map((notification, index) => (
+                         <MenuItem
+                           key={notification.id || index}
+                           onClick={() => handleNotificationClick(notification)}
+                           sx={{
+                             borderRadius: 0,
+                             p: 1.8,
+                             mb: 0,
+                             alignItems: "flex-start",
+                            borderBottom: `1px solid ${borderCol}`,
+                             backgroundColor:
+                               Number(notification.is_read) === 0
+                                 ? darkMode
+                                   ? "rgba(30,41,59,0.95)"
+                                   : "#F0F9FF"
+                                 : "transparent",
+                           }}
+                         >
+                           <Box sx={{ width: "100%" }}>
+                             <Typography
+                               sx={{
+                                 fontSize: 15,
+                                 lineHeight: 1.35,
+                                 fontWeight: 800,
+                                 color: darkMode ? "#F8FAFC" : "#172033",
+                                 mb: 0.4,
+                               }}
+                             >
+                               {notification.title ||
+                                 notification.message ||
+                                 notification.type ||
+                                 "Notification"}
+                             </Typography>
+   
+                             <Typography
+                               variant="caption"
+                               sx={{
+                                 display: "block",
+                                 mt: 0.55,
+                                 color: "#2563EB",
+                                 fontWeight: 600,
+                                 fontSize: "12px",
+                               }}
+                             >
+{notification.created_at
+  ? new Date(notification.created_at).toLocaleString()
+  : "Recently"}
+                               </Typography>
+                           </Box>
+                         </MenuItem>
+                       ))
+                     )}
+                   </Menu>
+                 </>
+               )}
+   
+               {/* USER PROFILE AVATAR + NAME */}
+               <Box
+                 onClick={(e) => setProfileAnchorEl(e.currentTarget)}
+                 sx={{
+                   display: "flex",
+                   alignItems: "center",
+                   gap: 1.25,
+                   cursor: "pointer",
+                   flexShrink: 0,
+                   minWidth: "fit-content",
+                 }}
+               >
+                 <Avatar
+  src={getImageUrl(currentUser?.profile_pic)}
+  alt={currentUser?.name || ""}
+                   sx={{
+                     width: 42,
+                     height: 42,
+                     flexShrink: 0,
+                     border: "2px solid #2563EB",
+                     boxShadow: "0 0 12px rgba(6,182,212,0.4)",
+                     backgroundColor: darkMode ? "#475569" : "#BDBDBD",
+                     color: "#FFFFFF",
+                     fontWeight: 700,
+                   }}
+                 >
+{currentUser?.name?.charAt(0)?.toUpperCase()}
+                 </Avatar>
+   
+                 <Box
+                   sx={{
+                     display: { xs: "none", md: "block" },
+                     minWidth: 80,
+                   }}
+                 >
+                   <Typography
+                     variant="subtitle2"
+                     sx={{
+                       
+                       color: textPrimary,
+                       lineHeight: 1.2,
+                       whiteSpace: "nowrap",
+                     }}
+                   >
+{currentUser?.name}
 
-            {/* NOTIFICATION BELL */}
-            <IconButton
-              onClick={(e) => setNotifAnchorEl(e.currentTarget)}
-              sx={{
-                backgroundColor: darkMode ? "rgba(30, 41, 59, 0.8)" : "rgba(224, 242, 254, 0.8)",
-                p: 1.2,
-                borderRadius: "16px",
-                transition: "transform 0.2s ease",
-                "&:hover": { transform: "scale(1.05)" },
-              }}
-            >
-
-
-              <Badge
-  badgeContent={unreadNotificationCount}
-  color="error"
-  invisible={unreadNotificationCount === 0}
->
-              
-                <NotificationsNoneIcon sx={{ color: textPrimary, fontSize: 20 }} />
-              </Badge>
-            </IconButton>
-
-            {/* NOTIFICATIONS DROPDOWN MENU */}
-        
-{/* NOTIFICATION PANEL */}
-<Menu
-  anchorEl={notifAnchorEl}
-  open={Boolean(notifAnchorEl)}
-  onClose={() => setNotifAnchorEl(null)}
-  anchorOrigin={{
-    vertical: "bottom",
-    horizontal: "right",
-  }}
-  transformOrigin={{
-    vertical: "top",
-    horizontal: "right",
-  }}
-  MenuListProps={{
-    disablePadding: true,
-  }}
-  PaperProps={{
-    sx: {
-      mt: 1.5,
-      p: 0,
-
-      width: 290,
-      maxWidth: 290,
-
-      maxHeight: 520,
-      overflowY: "auto",
-
-      borderRadius: "3px",
-
-      backgroundColor: darkMode
-        ? "#0F172A"
-        : "#FFFFFF",
-
-      color: textPrimary,
-
-      border: darkMode
-        ? "1px solid rgba(255,255,255,0.10)"
-        : "1px solid #E2E8F0",
-
-      boxShadow: "0 5px 16px rgba(0,0,0,0.20)",
-
-      "& .MuiList-root": {
-        padding: 0,
-      },
-    },
-  }}
->
-  {/* HEADER */}
-  <Box
-    sx={{
-      px: 1.5,
-      py: 1.5,
-
-      backgroundColor: darkMode
-        ? "#0F172A"
-        : "#FFFFFF",
-
-      borderBottom: darkMode
-        ? "1px solid rgba(255,255,255,0.10)"
-        : "1px solid #DCEAF3",
-    }}
-  >
-    <Typography
-      sx={{
-        fontSize: "15px",
-        fontWeight: 500,
-        color: darkMode
-          ? "#F8FAFC"
-          : "#172033",
-      }}
-    >
-      Notifications & Alerts
-    </Typography>
-  </Box>
-
-  {/* NOTIFICATIONS */}
-  {notifications.length === 0 ? (
-    <Box
-      sx={{
-        px: 2,
-        py: 4,
-        textAlign: "center",
-      }}
-    >
-      <Typography
-        sx={{
-          fontSize: "13px",
-          color: textSecondary,
-        }}
-      >
-        No notifications
-      </Typography>
-    </Box>
-  ) : (
-    notifications.map((notification, index) => {
-      const unread =
-        Number(notification?.is_read) === 0;
-
-      const title =
-        notification?.title ||
-        notification?.message ||
-        "Notification";
-
-      const subtitle =
-        notification?.subtitle ||
-        notification?.description ||
-        notification?.department ||
-        "";
-
-      /*
-       * IMPORTANT:
-       * Don't display created_at.
-       *
-       * Backend returns:
-       * created_at: 2026-08-10T16:03:13.000Z
-       *
-       * We don't want that in the UI.
-       */
-
-      return (
-        <Box
-          key={notification?.id || index}
-          onClick={() =>
-            handleNotificationClick(notification)
-          }
-          sx={{
-            width: "100%",
-            boxSizing: "border-box",
-
-            px: 1.5,
-            py: 1.15,
-
-            minHeight: 66,
-
-            cursor: "pointer",
-
-            borderBottom:
-              index === notifications.length - 1
-                ? "none"
-                : darkMode
-                ? "1px solid rgba(255,255,255,0.10)"
-                : "1px solid #DCEAF3",
-
-            /*
-             * Unread notification background
-             */
-            backgroundColor: unread
-              ? darkMode
-                ? "#172554"
-                : "#EEF9FC"
-              : darkMode
-              ? "#0F172A"
-              : "#FFFFFF",
-
-            "&:hover": {
-              backgroundColor: darkMode
-                ? "#1E293B"
-                : "#F1F5F9",
-            },
-          }}
-        >
-          {/* TITLE */}
-          <Typography
-            sx={{
-              fontSize: "14px",
-
-              lineHeight: 1.35,
-
-              /*
-               * THIS MAKES THE TITLE BOLD
-               */
-              fontWeight: 800,
-
-              color: darkMode
-                ? "#F8FAFC"
-                : "#172033",
-
-              mb: 0.25,
-            }}
-          >
-            {title}
-          </Typography>
-
-          {/* SUBTITLE */}
-          <Typography
-            sx={{
-              fontSize: "11px",
-
-              lineHeight: 1.35,
-
-              color: darkMode
-                ? "#38BDF8"
-                : "#0284C7",
-
-              fontWeight: 600,
-            }}
-          >
-            {subtitle}
-          </Typography>
-        </Box>
-      );
-    })
-  )}
-</Menu>         
+                   </Typography>
+   
+                   <Typography
+                     variant="caption"
+                     sx={{
+                       color: textSecondary,
+                       lineHeight: 1.2,
+                       whiteSpace: "nowrap",
+                     }}
+                   >
+                    {currentUser?.role}
+                   </Typography>
+                 </Box>
+               </Box>
 
 
-            <Divider orientation="vertical" flexItem sx={{ height: 28, borderColor: borderCol }} />
-
-            {/* USER PROFILE BUTTON */}
-            <Box
-              onClick={(e) => setProfileAnchorEl(e.currentTarget)}
-              sx={{
-                mt:-9.5,
-                display: "flex",
-                alignItems: "center",
-                gap: 1.5,
-                cursor: "pointer",
-              }}
-            >
-             <Avatar
-  src={getImageUrl(formData.profile_pic)}
-                sx={{ width: 42, height: 42, border: "2px solid #06B6D4", boxShadow: "0 0 12px rgba(6,182,212,0.4)" }}
-              />
-              <Box sx={{ display: { xs: "none", md: "block" } }}>
-                <Typography variant="subtitle2" fontWeight="800" sx={{ lineHeight: 1.2, color: textPrimary }}>
-                  {formData.name}
-                </Typography>
-                <Typography
-  variant="caption"
-  sx={{ color: textSecondary, fontWeight: 700 }}
->
-  {formData.role}
-</Typography>
-              </Box>
-            </Box>
-
+           
             {/* PROFILE MENU */}
             <Menu
               anchorEl={profileAnchorEl}
@@ -1110,21 +1230,47 @@ const handleSave = async () => {
                   borderRadius: "18px",
                   width: 190,
                   p: 1,
-                  backgroundColor: darkMode ? "#0F172A !important" : "#FFFFFF !important",
+                  backgroundColor: darkMode ? "#0B1220 !important" : "#FFFFFF !important",
                   color: textPrimary,
                   border: `1px solid ${borderCol}`,
                 },
               }}
             >
-              <MenuItem onClick={() => { setProfileAnchorEl(null); navigate("/profile"); }} sx={{ fontWeight: 700 }}>
-                My Profile
-              </MenuItem>
-              <MenuItem onClick={() => { setProfileAnchorEl(null); navigate("/edit-profile"); }} sx={{ fontWeight: 700 }}>
-                Edit Profile
-              </MenuItem>
-              <MenuItem onClick={() => { setProfileAnchorEl(null); navigate("/change-password"); }} sx={{ fontWeight: 700 }}>
-                Change Password
-              </MenuItem>
+              {can("profile.view") && (
+                <MenuItem
+                  onClick={() => {
+                    setProfileAnchorEl(null);
+                    navigate("/profile");
+                  }}
+                  sx={{ fontWeight: 700 }}
+                >
+                  My Profile
+                </MenuItem>
+              )}
+
+              {can("profile.edit") && (
+                <MenuItem
+                  onClick={() => {
+                    setProfileAnchorEl(null);
+                    navigate("/edit-profile");
+                  }}
+                  sx={{ fontWeight: 700 }}
+                >
+                  Edit Profile
+                </MenuItem>
+              )}
+
+{can("password.view") && (
+                  <MenuItem
+                  onClick={() => {
+                    setProfileAnchorEl(null);
+                    navigate("/change-password");
+                  }}
+                  sx={{ fontWeight: 700 }}
+                >
+                  Change Password
+                </MenuItem>
+              )}
               <Divider sx={{ my: 1, borderColor: borderCol }} />
               <MenuItem onClick={() => navigate("/")} sx={{ color: "#FF4D4D !important", fontWeight: 800 }}>
                 Logout
@@ -1150,7 +1296,7 @@ const handleSave = async () => {
           <Box
             sx={{
               height: 140,
-              background: "linear-gradient(135deg, #06B6D4 0%, #0284C7 50%, #0369A1 100%)",
+              background: "linear-gradient(135deg, #2563EB 0%, #2563EB 50%, #1D4ED8 100%)",
               position: "relative",
               px: 4,
               pt: 3,
@@ -1194,7 +1340,7 @@ const handleSave = async () => {
                     width: 110,
                     height: 110,
                     border: `4px solid ${darkMode ? "#0F172A" : "#FFFFFF"}`,
-                    boxShadow: "0 8px 24px rgba(6, 182, 212, 0.4)",
+                    boxShadow: "0 8px 24px rgba(37, 99, 235, 0.28)",
                   }}
                 />
                 
@@ -1207,7 +1353,7 @@ const handleSave = async () => {
     onChange={handleProfilePhotoUpload}
   />
 
-  <Tooltip title="Upload New Profile Photo">
+  {can("edit_profile.photo") && <Tooltip title="Upload New Profile Photo">
     <IconButton
       onClick={() =>
         profileFileInputRef.current?.click()
@@ -1216,55 +1362,59 @@ const handleSave = async () => {
         position: "absolute",
         bottom: 4,
         right: 4,
-        backgroundColor: "#06B6D4",
+        backgroundColor: "#2563EB",
         color: "#FFFFFF",
         boxShadow:
-          "0 4px 12px rgba(6, 182, 212, 0.5)",
+          "0 4px 12px rgba(37, 99, 235, 0.5)",
         "&:hover": {
-          backgroundColor: "#0284C7",
+          backgroundColor: "#2563EB",
           transform: "scale(1.1)",
         },
       }}
     >
       <CameraAltIcon sx={{ fontSize: 18 }} />
     </IconButton>
-  </Tooltip>
+  </Tooltip>}
 </>
               </Box>
 
-              {/* ACTION BUTTONS */}
-              <Box sx={{ display: "flex", gap: 1.5, pb: 1 }}>
-                <Button
-                  variant="outlined"
-                  onClick={() => navigate("/profile")}
-                  sx={{
-                    borderRadius: "16px",
-                    px: 3,
-                    height: 46,
-                    borderColor: borderCol,
-                    color: textPrimary,
-                    fontWeight: 800,
-                    textTransform: "none",
-                    backgroundColor: bgInnerCard,
-                    "&:hover": { borderColor: "#06B6D4", backgroundColor: bgCard },
-                  }}
-                >
-                  Cancel Edit
-                </Button>
+             {/* ACTION BUTTONS */}
+<Box sx={{ display: "flex", gap: 1.5, pb: 1 }}>
+  <Button
+    variant="outlined"
+    onClick={() => navigate("/profile")}
+    sx={{
+      borderRadius: "16px",
+      px: 3,
+      height: 46,
+      borderColor: borderCol,
+      color: textPrimary,
+      fontWeight: 800,
+      textTransform: "none",
+      backgroundColor: bgInnerCard,
+      "&:hover": {
+        borderColor: "#2563EB",
+        backgroundColor: bgCard,
+      },
+    }}
+  >
+    Cancel Edit
+  </Button>
                 <Button
                   variant="contained"
                   startIcon={<SaveIcon />}
                   onClick={handleSave}
+                  disabled={!can("edit_profile.save")}
                   sx={{
                     borderRadius: "16px",
                     px: 4,
                     height: 46,
-                    background: "linear-gradient(135deg, #06B6D4 0%, #0284C7 100%)",
+                    background: "linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)",
                     color: "#FFFFFF",
                     fontWeight: 800,
                     textTransform: "none",
-                    boxShadow: "0 8px 24px rgba(6, 182, 212, 0.4)",
-                    "&:hover": { background: "linear-gradient(135deg, #0284C7 0%, #0369A1 100%)" },
+                    boxShadow: "0 8px 24px rgba(37, 99, 235, 0.28)",
+                    "&:hover": { background: "linear-gradient(135deg, #1D4ED8 0%, #1E40AF 100%)" },
                   }}
                 >
                   Save All Changes
@@ -1300,7 +1450,7 @@ const handleSave = async () => {
             indicatorColor="primary"
             sx={{
               "& .MuiTabs-indicator": {
-                backgroundColor: "#06B6D4",
+                backgroundColor: "#2563EB",
                 height: 3.5,
                 borderRadius: "3px",
               },
@@ -1350,6 +1500,7 @@ const handleSave = async () => {
                 <TextField
                   label="Full Name"
                   fullWidth
+                  disabled={!can("edit_profile.basic")}
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   sx={{
@@ -1358,8 +1509,8 @@ const handleSave = async () => {
                       backgroundColor: bgInnerCard,
                       color: textPrimary,
                       "& fieldset": { borderColor: borderCol },
-                      "&:hover fieldset": { borderColor: "#06B6D4" },
-                      "&.Mui-focused fieldset": { borderColor: "#06B6D4" },
+                      "&:hover fieldset": { borderColor: "#2563EB" },
+                      "&.Mui-focused fieldset": { borderColor: "#2563EB" },
                     },
                     "& .MuiInputLabel-root": { color: textSecondary, fontWeight: 700 },
                   }}
@@ -1367,7 +1518,7 @@ const handleSave = async () => {
                     input: {
                       startAdornment: (
                         <InputAdornment position="start">
-                          <PersonIcon sx={{ color: "#06B6D4", fontSize: 20 }} />
+                          <PersonIcon sx={{ color: "#2563EB", fontSize: 20 }} />
                         </InputAdornment>
                       ),
                     },
@@ -1380,6 +1531,7 @@ const handleSave = async () => {
                   label="Work Email Address"
                   type="email"
                   fullWidth
+                  disabled={!can("edit_profile.contact")}
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   sx={{
@@ -1388,8 +1540,8 @@ const handleSave = async () => {
                       backgroundColor: bgInnerCard,
                       color: textPrimary,
                       "& fieldset": { borderColor: borderCol },
-                      "&:hover fieldset": { borderColor: "#06B6D4" },
-                      "&.Mui-focused fieldset": { borderColor: "#06B6D4" },
+                      "&:hover fieldset": { borderColor: "#2563EB" },
+                      "&.Mui-focused fieldset": { borderColor: "#2563EB" },
                     },
                     "& .MuiInputLabel-root": { color: textSecondary, fontWeight: 700 },
                   }}
@@ -1409,6 +1561,7 @@ const handleSave = async () => {
                 <TextField
                   label="Direct Phone Number"
                   fullWidth
+                  disabled={!can("edit_profile.contact")}
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   sx={{
@@ -1417,8 +1570,8 @@ const handleSave = async () => {
                       backgroundColor: bgInnerCard,
                       color: textPrimary,
                       "& fieldset": { borderColor: borderCol },
-                      "&:hover fieldset": { borderColor: "#06B6D4" },
-                      "&.Mui-focused fieldset": { borderColor: "#06B6D4" },
+                      "&:hover fieldset": { borderColor: "#2563EB" },
+                      "&.Mui-focused fieldset": { borderColor: "#2563EB" },
                     },
                     "& .MuiInputLabel-root": { color: textSecondary, fontWeight: 700 },
                   }}
@@ -1438,6 +1591,7 @@ const handleSave = async () => {
                 <TextField
                   label="Designation / Role Title"
                   fullWidth
+                  disabled={!can("edit_profile.basic")}
                   value={formData.designation}
 onChange={(e) =>
   setFormData({ ...formData, designation: e.target.value })
@@ -1448,8 +1602,8 @@ onChange={(e) =>
                       backgroundColor: bgInnerCard,
                       color: textPrimary,
                       "& fieldset": { borderColor: borderCol },
-                      "&:hover fieldset": { borderColor: "#06B6D4" },
-                      "&.Mui-focused fieldset": { borderColor: "#06B6D4" },
+                      "&:hover fieldset": { borderColor: "#2563EB" },
+                      "&.Mui-focused fieldset": { borderColor: "#2563EB" },
                     },
                     "& .MuiInputLabel-root": { color: textSecondary, fontWeight: 700 },
                   }}
@@ -1457,7 +1611,7 @@ onChange={(e) =>
                     input: {
                       startAdornment: (
                         <InputAdornment position="start">
-                          <WorkspacePremiumIcon sx={{ color: "#0284C7", fontSize: 20 }} />
+                          <WorkspacePremiumIcon sx={{ color: "#2563EB", fontSize: 20 }} />
                         </InputAdornment>
                       ),
                     },
@@ -1470,6 +1624,7 @@ onChange={(e) =>
                   select
                   label="Department"
                   fullWidth
+                  disabled={!can("edit_profile.department")}
                   value={formData.department}
                   onChange={(e) => setFormData({ ...formData, department: e.target.value })}
                   sx={{
@@ -1478,8 +1633,8 @@ onChange={(e) =>
                       backgroundColor: bgInnerCard,
                       color: textPrimary,
                       "& fieldset": { borderColor: borderCol },
-                      "&:hover fieldset": { borderColor: "#06B6D4" },
-                      "&.Mui-focused fieldset": { borderColor: "#06B6D4" },
+                      "&:hover fieldset": { borderColor: "#2563EB" },
+                      "&.Mui-focused fieldset": { borderColor: "#2563EB" },
                     },
                     "& .MuiInputLabel-root": { color: textSecondary, fontWeight: 700 },
                   }}
@@ -1487,7 +1642,7 @@ onChange={(e) =>
                     input: {
                       startAdornment: (
                         <InputAdornment position="start">
-                          <BusinessIcon sx={{ color: "#06B6D4", fontSize: 20 }} />
+                          <BusinessIcon sx={{ color: "#2563EB", fontSize: 20 }} />
                         </InputAdornment>
                       ),
                     },
@@ -1504,6 +1659,7 @@ onChange={(e) =>
                   label="Joining Date"
                   type="date"
                   fullWidth
+                  disabled={!can("edit_profile.basic")}
                   value={formData.joiningDate}
                   onChange={(e) => setFormData({ ...formData, joiningDate: e.target.value })}
                   sx={{
@@ -1512,8 +1668,8 @@ onChange={(e) =>
                       backgroundColor: bgInnerCard,
                       color: textPrimary,
                       "& fieldset": { borderColor: borderCol },
-                      "&:hover fieldset": { borderColor: "#06B6D4" },
-                      "&.Mui-focused fieldset": { borderColor: "#06B6D4" },
+                      "&:hover fieldset": { borderColor: "#2563EB" },
+                      "&.Mui-focused fieldset": { borderColor: "#2563EB" },
                     },
                     "& .MuiInputLabel-root": { color: textSecondary, fontWeight: 700 },
                   }}
@@ -1534,6 +1690,7 @@ onChange={(e) =>
                 <TextField
                   label="Office Location / Address"
                   fullWidth
+                  disabled={!can("edit_profile.contact")}
                   value={formData.address}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                   sx={{
@@ -1542,8 +1699,8 @@ onChange={(e) =>
                       backgroundColor: bgInnerCard,
                       color: textPrimary,
                       "& fieldset": { borderColor: borderCol },
-                      "&:hover fieldset": { borderColor: "#06B6D4" },
-                      "&.Mui-focused fieldset": { borderColor: "#06B6D4" },
+                      "&:hover fieldset": { borderColor: "#2563EB" },
+                      "&.Mui-focused fieldset": { borderColor: "#2563EB" },
                     },
                     "& .MuiInputLabel-root": { color: textSecondary, fontWeight: 700 },
                   }}
@@ -1669,6 +1826,7 @@ onChange={(e) =>
                   multiline
                   rows={3}
                   fullWidth
+                  disabled={!can("edit_profile.basic")}
                   value={formData.bio}
                   onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
                   sx={{
@@ -1677,8 +1835,8 @@ onChange={(e) =>
                       backgroundColor: bgInnerCard,
                       color: textPrimary,
                       "& fieldset": { borderColor: borderCol },
-                      "&:hover fieldset": { borderColor: "#06B6D4" },
-                      "&.Mui-focused fieldset": { borderColor: "#06B6D4" },
+                      "&:hover fieldset": { borderColor: "#2563EB" },
+                      "&.Mui-focused fieldset": { borderColor: "#2563EB" },
                     },
                     "& .MuiInputLabel-root": { color: textSecondary, fontWeight: 700 },
                   }}
@@ -1689,7 +1847,7 @@ onChange={(e) =>
         )}
 
         {/* TAB 1: SKILLS & TECH STACK */}
-        {currentTabValue === 1 && (
+        {currentTabValue === 1 && (can("profile.skills.view") || can("profile.edit")) && (
           <Paper
             elevation={0}
             sx={{
@@ -1716,6 +1874,7 @@ onChange={(e) =>
                 size="small"
                 fullWidth
                 value={newSkillInput}
+                disabled={!can("edit_profile.skills.add")}
                 onChange={(e) => setNewSkillInput(e.target.value)}
                 onKeyPress={(e) => e.key === "Enter" && handleAddSkill()}
                 sx={{
@@ -1725,8 +1884,8 @@ onChange={(e) =>
                     backgroundColor: bgInnerCard,
                     color: textPrimary,
                     "& fieldset": { borderColor: borderCol },
-                    "&:hover fieldset": { borderColor: "#06B6D4" },
-                    "&.Mui-focused fieldset": { borderColor: "#06B6D4" },
+                    "&:hover fieldset": { borderColor: "#2563EB" },
+                    "&.Mui-focused fieldset": { borderColor: "#2563EB" },
                   },
                 }}
               />
@@ -1734,15 +1893,16 @@ onChange={(e) =>
                 variant="contained"
                 startIcon={<AddIcon />}
                 onClick={handleAddSkill}
+                disabled={!can("edit_profile.skills.add")}
                 sx={{
                   borderRadius: "16px",
                   px: 3.5,
-                  background: "linear-gradient(135deg, #06B6D4 0%, #0284C7 100%)",
+                  background: "linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)",
                   color: "#FFFFFF",
                   fontWeight: 800,
                   textTransform: "none",
-                  boxShadow: "0 6px 18px rgba(6, 182, 212, 0.4)",
-                  "&:hover": { background: "linear-gradient(135deg, #0284C7 0%, #0369A1 100%)" },
+                  boxShadow: "0 6px 18px rgba(37, 99, 235, 0.28)",
+                  "&:hover": { background: "linear-gradient(135deg, #1D4ED8 0%, #1E40AF 100%)" },
                 }}
               >
                 Add Skill
@@ -1763,6 +1923,7 @@ onChange={(e) =>
       key={skill.id}
       label={skill.skill}
       onDelete={() => handleDeleteSkill(skill)}
+      disabled={!can("edit_profile.skills.remove")}
       sx={{
         borderRadius: "12px",
         fontWeight: 700,
@@ -1821,8 +1982,9 @@ onChange={(e) =>
                   control={
                     <Switch
                       checked={preferences.twoFactorAuth}
+                      disabled={!can("profile.edit")}
                       onChange={(e) => setPreferences({ ...preferences, twoFactorAuth: e.target.checked })}
-                      sx={{ "& .MuiSwitch-switchBase.Mui-checked": { color: "#06B6D4" }, "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": { backgroundColor: "#06B6D4" } }}
+                      sx={{ "& .MuiSwitch-switchBase.Mui-checked": { color: "#2563EB" }, "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": { backgroundColor: "#2563EB" } }}
                     />
                   }
                   label=""
@@ -1842,7 +2004,7 @@ onChange={(e) =>
                 }}
               >
                 <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                  <Avatar sx={{ bgcolor: "rgba(6, 182, 212, 0.18)", color: "#06B6D4", borderRadius: "14px", width: 44, height: 44 }}>
+                  <Avatar sx={{ bgcolor: "rgba(6, 182, 212, 0.18)", color: "#2563EB", borderRadius: "14px", width: 44, height: 44 }}>
                     <NotificationsIcon />
                   </Avatar>
                   <Box>
@@ -1858,8 +2020,9 @@ onChange={(e) =>
                   control={
                     <Switch
                       checked={preferences.emailNotifs}
+                      disabled={!can("edit_profile.preferences")}
                       onChange={(e) => setPreferences({ ...preferences, emailNotifs: e.target.checked })}
-                      sx={{ "& .MuiSwitch-switchBase.Mui-checked": { color: "#06B6D4" }, "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": { backgroundColor: "#06B6D4" } }}
+                      sx={{ "& .MuiSwitch-switchBase.Mui-checked": { color: "#2563EB" }, "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": { backgroundColor: "#2563EB" } }}
                     />
                   }
                   label=""
@@ -1900,7 +2063,7 @@ onChange={(e) =>
                     textTransform: "none",
                     borderColor: borderCol,
                     color: textPrimary,
-                    "&:hover": { borderColor: "#06B6D4", backgroundColor: bgInnerCard },
+                    "&:hover": { borderColor: "#2563EB", backgroundColor: bgInnerCard },
                   }}
                 >
                   Manage Security
@@ -1930,9 +2093,9 @@ onChange={(e) =>
           sx={{
             borderRadius: "16px",
             fontWeight: 800,
-            background: "linear-gradient(135deg, #06B6D4 0%, #0284C7 100%)",
+            background: "linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)",
             color: "#FFFFFF",
-            boxShadow: "0 10px 30px rgba(6, 182, 212, 0.4)",
+            boxShadow: "0 10px 30px rgba(37, 99, 235, 0.28)",
             "& .MuiAlert-icon": { color: "#FFFFFF" },
           }}
         >
