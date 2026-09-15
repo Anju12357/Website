@@ -211,7 +211,8 @@ const report = async (req, reply) => {
 
     return reply.send({
       status: 1,
-      file: "http://localhost:4000/uploads/reports/employee-report.pdf",
+     file: "https://website-v1t1.onrender.com/uploads/reports/employee-report.pdf",
+
     });
 
   } catch (err) {
