@@ -251,9 +251,7 @@ const handleLogin = async (e) => {
       response.data
     );
 
-    if (
-      response.data?.status !== 1
-    ) {
+    if (!response.data?.user) {
       throw new Error(
         response.data?.error ||
         "Login failed"
@@ -1329,3 +1327,4 @@ const handleLogin = async (e) => {
 }
 
 export default Login;
+
