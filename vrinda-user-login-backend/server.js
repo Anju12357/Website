@@ -54,6 +54,7 @@ const meetingRoutes =
 const mailRoutes =
   require("./routes/mail");
 
+  const rolesRoutes = require("./routes/roles");
 
 // ======================================================
 // CORS
@@ -291,6 +292,8 @@ mailRoutes.forEach(
   }
 );
 
+
+rolesRoutes.forEach((route) => { fastify.route(route); });
 
 // ======================================================
 // PORT
