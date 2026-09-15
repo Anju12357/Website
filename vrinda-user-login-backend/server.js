@@ -56,6 +56,8 @@ const mailRoutes =
 
   const rolesRoutes = require("./routes/roles");
 
+
+  const permissionRoutes = require("./routes/permissions");
 // ======================================================
 // CORS
 // ======================================================
@@ -295,6 +297,7 @@ mailRoutes.forEach(
 
 rolesRoutes.forEach((route) => { fastify.route(route); });
 
+permissionRoutes.forEach((route) => { fastify.route(route); });
 // ======================================================
 // PORT
 // ======================================================
