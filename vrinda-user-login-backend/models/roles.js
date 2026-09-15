@@ -70,7 +70,12 @@ const getAllRoles = async () => {
       ORDER BY id ASC
     `);
 
-    return results;
+  return results.map((role) => ({
+  ...role,
+  permissions: role.permissions
+    ? JSON.parse(role.permissions)
+    : [],
+}));
   } catch (error) {
     console.error("Error getAllRoles:", error);
     return false;
