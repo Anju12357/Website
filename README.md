@@ -6,6 +6,11 @@ A full-stack Employee Management System built with React, Node.js, Fastify and M
 
  [View Live Website](https://employee-management-system-alpha-flax.vercel.app/)
 
+  Demo Login
+
+Email: anju@gmail.com
+Password: Demo@123
+
 ##  Technologies
 
 - React
