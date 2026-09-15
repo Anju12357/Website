@@ -11,13 +11,19 @@ const sequelize = new Sequelize(
   }
 );
 
+const crypto = require("crypto");
+
 console.log("DB CONFIG:", {
   host: process.env.MYSQL_HOST,
   port: process.env.MYSQL_PORT,
   database: process.env.MYSQL_DATABASE,
   user: process.env.MYSQL_USER,
   passwordSet: !!process.env.MYSQL_PASSWORD,
-  passwordLength: process.env.MYSQL_PASSWORD?.length
+  passwordLength: process.env.MYSQL_PASSWORD?.length,
+  passwordHash: crypto
+    .createHash("sha256")
+    .update(process.env.MYSQL_PASSWORD || "")
+    .digest("hex")
 });
 
 module.exports = sequelize;
