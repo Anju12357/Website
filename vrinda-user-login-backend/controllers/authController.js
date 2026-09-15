@@ -71,7 +71,7 @@ console.log("Password Match:", verified);
     res.cookie('accessToken', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'Strict',
+      sameSite: 'None',
     });
 
     const userData = await Users.getUserById(user.user_id);
